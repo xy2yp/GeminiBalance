@@ -14,6 +14,10 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -22,12 +26,10 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       # 登录到 Docker Hub
-      - name: Log into registry ${{ env.REGISTRY }}
+      - name: Log into Docker Hub
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
-          # 修改为 Docker Hub
-          registry: ${{ env.REGISTRY }}
           # 使用 Docker Hub 用户名
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           # 使用 Docker Hub 密码或访问令牌
@@ -38,7 +40,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           # 修改镜像名称格式
-          images: ${{ env.IMAGE_NAME }}
+          images: xy2yp/geminiproxy
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
