@@ -2,6 +2,7 @@ import asyncio
 from itertools import cycle
 from typing import Dict
 
+
 from app.config.config import settings
 from app.log.logger import get_key_manager_logger
 
@@ -36,6 +37,16 @@ class KeyManager:
         async with self.failure_count_lock:
             for key in self.key_failure_counts:
                 self.key_failure_counts[key] = 0
+                
+    async def reset_key_failure_count(self, key: str) -> bool:
+        """重置指定key的失败计数"""
+        async with self.failure_count_lock:
+            if key in self.key_failure_counts:
+                self.key_failure_counts[key] = 0
+                logger.info(f"Reset failure count for key: {key}")
+                return True
+            logger.warning(f"Attempt to reset failure count for non-existent key: {key}")
+            return False
 
     async def get_next_working_key(self) -> str:
         """获取下一可用的API key"""
@@ -51,7 +62,7 @@ class KeyManager:
                 # await self.reset_failure_counts() 取消重置
                 return current_key
 
-    async def handle_api_failure(self, api_key: str) -> str:
+    async def handle_api_failure(self, api_key: str,retries: int) -> str:
         """处理API调用失败"""
         async with self.failure_count_lock:
             self.key_failure_counts[api_key] += 1
@@ -59,8 +70,10 @@ class KeyManager:
                 logger.warning(
                     f"API key {api_key} has failed {self.MAX_FAILURES} times"
                 )
-
-        return await self.get_next_working_key()
+        if retries < settings.MAX_RETRIES:
+            return await self.get_next_working_key()
+        else: 
+            return ""
 
     def get_fail_count(self, key: str) -> int:
         """获取指定密钥的失败次数"""
@@ -107,4 +120,14 @@ async def get_key_manager_instance(api_keys: list = None) -> KeyManager:
             if api_keys is None:
                 raise ValueError("API keys are required to initialize the KeyManager")
             _singleton_instance = KeyManager(api_keys)
+            logger.info("KeyManager instance created.")
         return _singleton_instance
+
+    
+async def reset_key_manager_instance():
+    """重置 KeyManager 单例实例"""
+    global _singleton_instance
+    async with _singleton_lock:
+        if _singleton_instance:
+            _singleton_instance = None
+            logger.info("KeyManager instance reset.")

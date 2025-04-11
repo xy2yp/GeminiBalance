@@ -9,3 +9,10 @@ uvicorn
 google-genai
 jinja2
 python-multipart
+# 数据库相关依赖
+pymysql
+sqlalchemy
+aiomysql
+databases
+python-dotenv
+apscheduler # 添加定时任务库
