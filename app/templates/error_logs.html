@@ -105,7 +105,7 @@
                                 <th class="px-5 py-3 font-semibold rounded-tl-lg">ID</th> <!-- Increased padding, adjusted rounding -->
                                 <th class="px-5 py-3 font-semibold">Gemini密钥</th>
                                 <th class="px-5 py-3 font-semibold">错误类型</th>
-                                <th class="px-5 py-3 font-semibold">错误日志</th>
+                                <th class="px-5 py-3 font-semibold">错误码</th>
                                 <th class="px-5 py-3 font-semibold">模型名称</th>
                                 <th class="px-5 py-3 font-semibold">请求时间</th>
                                 <th class="px-5 py-3 font-semibold rounded-tr-lg">操作</th> <!-- Adjusted rounding -->
@@ -233,7 +233,7 @@
 {% endblock %}
 
 {% block body_scripts %}
-    <script src="{{ url_for('static', path='/js/error_logs.js') }}"></script>
+    <script src="/static/js/error_logs.js"></script>
     <script>
         // error_logs.html specific JS initialization (if any)
         // e.g., initialize date pickers or other elements if needed
