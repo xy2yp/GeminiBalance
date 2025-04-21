@@ -31,7 +31,10 @@ class GeminiApiClient(ApiClient):
             model = model[:-7]
         if model.endswith("-image"):
             model = model[:-6]
-
+        if model.endswith("-non-thinking"):
+            model = model[:-13]
+        if "-search" in model and "-non-thinking" in model:
+            model = model[:-20]
         return model
 
     async def generate_content(self, payload: Dict[str, Any], model: str, api_key: str) -> Dict[str, Any]:

@@ -24,7 +24,7 @@ class ModelService:
                     if model_id not in settings.FILTERED_MODELS:
                         filtered_models_list.append(model)
                     else:
-                        logger.info(f"Filtered out model: {model_id}")
+                        logger.debug(f"Filtered out model: {model_id}")
 
                 gemini_models["models"] = filtered_models_list
                 return gemini_models
@@ -70,6 +70,10 @@ class ModelService:
                 image_model = openai_model.copy()
                 image_model["id"] = f"{model_id}-image"
                 openai_format["data"].append(image_model)
+            if model_id in settings.THINKING_MODELS:
+                non_thinking_model = openai_model.copy()
+                non_thinking_model["id"] = f"{model_id}-non-thinking"
+                openai_format["data"].append(non_thinking_model)
 
         if settings.CREATE_IMAGE_MODEL:
             image_model = openai_model.copy()

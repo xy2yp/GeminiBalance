@@ -83,6 +83,21 @@ async def list_models(
             
             models_json["models"].append(item)
             
+    # 添加思考模型的非思考版本
+    if settings.THINKING_MODELS:
+        for name in settings.THINKING_MODELS:
+            model = model_mapping.get(name)
+            if not model:
+                continue
+                
+            item = deepcopy(model)
+            item["name"] = f"models/{name}-non-thinking"
+            display_name = f'{item.get("displayName")} Non Thinking'
+            item["displayName"] = display_name
+            item["description"] = display_name
+            
+            models_json["models"].append(item)
+            
     return models_json
 
 
@@ -94,12 +109,13 @@ async def generate_content(
     request: GeminiRequest,
     _=Depends(security_service.verify_key_or_goog_api_key),
     api_key: str = Depends(get_next_working_key),
+    key_manager: KeyManager = Depends(get_key_manager),
     chat_service: GeminiChatService = Depends(get_chat_service)
 ):
     """非流式生成内容"""
     logger.info("-" * 50 + "gemini_generate_content" + "-" * 50)
     logger.info(f"Handling Gemini content generation request for model: {model_name}")
-    logger.info(f"Request: \n{request.model_dump_json(indent=2)}")
+    logger.debug(f"Request: \n{request.model_dump_json(indent=2)}")
     logger.info(f"Using API key: {api_key}")
     
     if not model_service.check_model_support(model_name):
@@ -125,12 +141,13 @@ async def stream_generate_content(
     request: GeminiRequest,
     _=Depends(security_service.verify_key_or_goog_api_key),
     api_key: str = Depends(get_next_working_key),
+    key_manager: KeyManager = Depends(get_key_manager),
     chat_service: GeminiChatService = Depends(get_chat_service)
 ):
     """流式生成内容"""
     logger.info("-" * 50 + "gemini_stream_generate_content" + "-" * 50)
     logger.info(f"Handling Gemini streaming content generation for model: {model_name}")
-    logger.info(f"Request: \n{request.model_dump_json(indent=2)}")
+    logger.debug(f"Request: \n{request.model_dump_json(indent=2)}")
     logger.info(f"Using API key: {api_key}")
     
     if not model_service.check_model_support(model_name):

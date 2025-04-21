@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
 from app.core.security import verify_auth_token
-from app.log.logger import get_config_routes_logger
+from app.log.logger import get_config_routes_logger, Logger # 导入 Logger 类
 from app.service.config.config_service import ConfigService
 
 # 创建路由
@@ -31,8 +31,13 @@ async def update_config(config_data: Dict[str, Any], request: Request):
         logger.warning("Unauthorized access attempt to config page")
         return RedirectResponse(url="/", status_code=302)
     try:
-        return await ConfigService.update_config(config_data)
+        result = await ConfigService.update_config(config_data)
+        # 配置更新成功后，立即更新所有 logger 的级别
+        Logger.update_log_levels(config_data["LOG_LEVEL"])
+        logger.info("Log levels updated after configuration change.") # 添加日志记录
+        return result
     except Exception as e:
+        logger.error(f"Error updating config or log levels: {e}", exc_info=True) # 记录详细错误
         raise HTTPException(status_code=400, detail=str(e))
 
 

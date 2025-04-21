@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     // 初始化配置
     initConfig();
-    
+
     // 标签切换
     const tabButtons = document.querySelectorAll('.tab-btn');
     tabButtons.forEach(button => {
@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
             switchTab(tabId);
         });
     });
-    
+
     // 上传提供商切换
     const uploadProviderSelect = document.getElementById('UPLOAD_PROVIDER');
     if (uploadProviderSelect) {
@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', function() {
             toggleProviderConfig(this.value);
         });
     }
-    
+
     // 切换按钮事件
     const toggleSwitches = document.querySelectorAll('.toggle-switch');
     toggleSwitches.forEach(toggleSwitch => {
@@ -33,19 +33,19 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
-    
+
     // 保存按钮
     const saveBtn = document.getElementById('saveBtn');
     if (saveBtn) {
         saveBtn.addEventListener('click', saveConfig);
     }
-    
+
     // 重置按钮
     const resetBtn = document.getElementById('resetBtn');
     if (resetBtn) {
         resetBtn.addEventListener('click', resetConfig);
     }
-    
+
     // 滚动按钮
     window.addEventListener('scroll', toggleScrollButtons);
 
@@ -197,55 +197,97 @@ document.addEventListener('DOMContentLoaded', function() {
             showNotification('已生成新认证令牌', 'success');
         });
     }
+
+    // --- 修改：思考模型预算映射不再需要手动添加按钮 ---
+    // const addBudgetMapItemBtn = document.getElementById('addBudgetMapItemBtn');
+    // if (addBudgetMapItemBtn) {
+    //     addBudgetMapItemBtn.addEventListener('click', addBudgetMapItem);
+    // }
+    // --- 结束：思考模型预算映射相关 ---
+
+    // 添加事件委托，处理动态添加的 THINKING_MODELS 输入框的 input 事件
+    const thinkingModelsContainer = document.getElementById('THINKING_MODELS_container');
+    if (thinkingModelsContainer) {
+        thinkingModelsContainer.addEventListener('input', function(event) {
+            if (event.target && event.target.classList.contains('array-input') && event.target.closest('.array-item[data-model-id]')) {
+                const modelInput = event.target;
+                const modelId = modelInput.closest('.array-item').getAttribute('data-model-id');
+                const budgetKeyInput = document.querySelector(`.map-key-input[data-model-id="${modelId}"]`);
+                if (budgetKeyInput) {
+                    budgetKeyInput.value = modelInput.value;
+                }
+            }
+        });
+    }
+
+
 }); // <-- DOMContentLoaded 结束括号
+
+// --- 新增：生成唯一ID ---
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+// --- 结束：生成唯一ID ---
+
 
 // 初始化配置
 async function initConfig() {
     try {
         showNotification('正在加载配置...', 'info');
         const response = await fetch('/api/config');
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const config = await response.json();
-        
+
         // 确保数组字段有默认值
         if (!config.API_KEYS || !Array.isArray(config.API_KEYS) || config.API_KEYS.length === 0) {
             config.API_KEYS = ['请在此处输入 API 密钥'];
         }
-        
+
         if (!config.ALLOWED_TOKENS || !Array.isArray(config.ALLOWED_TOKENS) || config.ALLOWED_TOKENS.length === 0) {
             config.ALLOWED_TOKENS = [''];
         }
-        
+
         if (!config.IMAGE_MODELS || !Array.isArray(config.IMAGE_MODELS) || config.IMAGE_MODELS.length === 0) {
             config.IMAGE_MODELS = ['gemini-1.5-pro-latest'];
         }
-        
+
         if (!config.SEARCH_MODELS || !Array.isArray(config.SEARCH_MODELS) || config.SEARCH_MODELS.length === 0) {
             config.SEARCH_MODELS = ['gemini-1.5-flash-latest'];
         }
-        
+
         if (!config.FILTERED_MODELS || !Array.isArray(config.FILTERED_MODELS) || config.FILTERED_MODELS.length === 0) {
             config.FILTERED_MODELS = ['gemini-1.0-pro-latest'];
         }
-        
+        // --- 新增：处理新字段的默认值 ---
+        if (!config.THINKING_MODELS || !Array.isArray(config.THINKING_MODELS)) {
+            config.THINKING_MODELS = []; // 默认为空数组
+        }
+        if (!config.THINKING_BUDGET_MAP || typeof config.THINKING_BUDGET_MAP !== 'object' || config.THINKING_BUDGET_MAP === null) {
+            config.THINKING_BUDGET_MAP = {}; // 默认为空对象
+        }
+        // --- 结束：处理新字段的默认值 ---
+
         populateForm(config);
-        
+
         // 确保上传提供商有默认值
         const uploadProvider = document.getElementById('UPLOAD_PROVIDER');
         if (uploadProvider && !uploadProvider.value) {
             uploadProvider.value = 'smms'; // 设置默认值为 smms
             toggleProviderConfig('smms');
         }
-        
+
         showNotification('配置加载成功', 'success');
     } catch (error) {
         console.error('加载配置失败:', error);
         showNotification('加载配置失败: ' + error.message, 'error');
-        
+
         // 加载失败时，使用默认配置
         const defaultConfig = {
             API_KEYS: [''],
@@ -253,9 +295,11 @@ async function initConfig() {
             IMAGE_MODELS: ['gemini-1.5-pro-latest'],
             SEARCH_MODELS: ['gemini-1.5-flash-latest'],
             FILTERED_MODELS: ['gemini-1.0-pro-latest'],
-            UPLOAD_PROVIDER: 'smms'
+            UPLOAD_PROVIDER: 'smms',
+            THINKING_MODELS: [],
+            THINKING_BUDGET_MAP: {}
         };
-        
+
         populateForm(defaultConfig);
         toggleProviderConfig('smms');
     }
@@ -263,40 +307,105 @@ async function initConfig() {
 
 // 填充表单
 function populateForm(config) {
-    for (const [key, value] of Object.entries(config)) {
-        // 首先检查是否是数组类型
-        if (Array.isArray(value)) {
-            const container = document.getElementById(`${key}_container`);
-            if (container) {
-                // 清除现有项
-                const existingItems = container.querySelectorAll('.array-item');
-                existingItems.forEach(item => item.remove());
-                // 添加数组项
-                value.forEach(item => {
-                    // 确保只添加非空字符串项（如果需要）
-                    // if (item && typeof item === 'string' && item.trim() !== '') {
-                 addArrayItemWithValue(key, item);
-            // }
-                });
-            }
-            // 处理完数组后，跳过本次循环的剩余部分
-            continue;
-        }
+    const modelIdMap = {}; // modelName -> modelId
 
-        // 如果不是数组，再尝试查找对应的单个元素
-        const element = document.getElementById(key);
-        if (element) {
-            if (typeof value === 'boolean') {
-                element.checked = value;
-            } else {
-                // 处理其他类型 (确保 value 不是 null 或 undefined)
-                element.value = value ?? ''; // 使用空字符串作为默认值
-            }
-        }
-        // 如果既不是数组，也找不到对应 ID 的元素，则忽略该配置项
+    // 1. Clear existing dynamic content first
+    const arrayContainers = document.querySelectorAll('.array-container');
+    arrayContainers.forEach(container => {
+        container.innerHTML = ''; // Clear all array containers
+    });
+    const budgetMapContainer = document.getElementById('THINKING_BUDGET_MAP_container');
+    if (budgetMapContainer) {
+        budgetMapContainer.innerHTML = ''; // Clear budget map container
+    } else {
+        console.error("Critical: THINKING_BUDGET_MAP_container not found!");
+        return; // Cannot proceed
     }
 
-    // 初始化上传提供商配置 (保持不变)
+    // 2. Populate THINKING_MODELS and build the map
+    if (Array.isArray(config.THINKING_MODELS)) {
+        const container = document.getElementById('THINKING_MODELS_container');
+        if (container) {
+            config.THINKING_MODELS.forEach(modelName => {
+                if (modelName && typeof modelName === 'string' && modelName.trim()) {
+                    const trimmedModelName = modelName.trim();
+                    // Call addArrayItemWithValue to add the model DOM element and get its ID
+                    const modelId = addArrayItemWithValue('THINKING_MODELS', trimmedModelName);
+                    if (modelId) {
+                        modelIdMap[trimmedModelName] = modelId;
+                    } else {
+                         console.warn(`Failed to get modelId for THINKING_MODEL: '${trimmedModelName}'`);
+                    }
+                } else {
+                     console.warn(`Invalid THINKING_MODEL entry found:`, modelName);
+                }
+            });
+        } else {
+             console.error("Critical: THINKING_MODELS_container not found!");
+        }
+    }
+
+    // 3. Populate THINKING_BUDGET_MAP using the map
+    let budgetItemsAdded = false;
+    if (config.THINKING_BUDGET_MAP && typeof config.THINKING_BUDGET_MAP === 'object') {
+        for (const [modelName, budgetValue] of Object.entries(config.THINKING_BUDGET_MAP)) {
+             if (modelName && typeof modelName === 'string') {
+                const trimmedModelName = modelName.trim();
+                const modelId = modelIdMap[trimmedModelName]; // Look up the ID
+                if (modelId) {
+                    // Call the function specifically designed to add ONLY the budget map DOM element
+                    createAndAppendBudgetMapItem(trimmedModelName, budgetValue, modelId);
+                    budgetItemsAdded = true;
+                } else {
+                    // Log if a budget entry exists but its corresponding model wasn't found/added
+                    console.warn(`Budget map: Could not find model ID for '${trimmedModelName}'. Skipping budget item.`);
+                }
+            } else {
+                 console.warn(`Invalid key found in THINKING_BUDGET_MAP:`, modelName);
+            }
+        }
+    }
+    // Add placeholder only if no budget items were successfully added
+    if (!budgetItemsAdded && budgetMapContainer) {
+         budgetMapContainer.innerHTML = '<div class="text-gray-500 text-sm italic">请在上方添加思考模型，预算将自动关联。</div>';
+    }
+
+    // 4. Populate other array fields (excluding THINKING_MODELS)
+    for (const [key, value] of Object.entries(config)) {
+        if (Array.isArray(value) && key !== 'THINKING_MODELS') {
+            const container = document.getElementById(`${key}_container`);
+            if (container) {
+                // Container already cleared, just add items
+                value.forEach(itemValue => {
+                    if (typeof itemValue === 'string') {
+                         addArrayItemWithValue(key, itemValue); // This adds non-thinking model array items
+                    } else {
+                         console.warn(`Invalid item found in array '${key}':`, itemValue);
+                    }
+                });
+            }
+        }
+    }
+
+    // 5. Populate non-array/non-budget fields
+     for (const [key, value] of Object.entries(config)) {
+        if (!Array.isArray(value) && !(typeof value === 'object' && value !== null && key === 'THINKING_BUDGET_MAP')) {
+            const element = document.getElementById(key);
+            if (element) {
+                if (element.type === 'checkbox' && typeof value === 'boolean') {
+                    element.checked = value;
+                } else if (element.type !== 'checkbox') {
+                    if (key === 'LOG_LEVEL' && typeof value === 'string') {
+                        element.value = value.toUpperCase();
+                    } else {
+                        element.value = (value !== null && value !== undefined) ? value : '';
+                    }
+                }
+            }
+        }
+    }
+
+    // 6. Initialize upload provider
     const uploadProvider = document.getElementById('UPLOAD_PROVIDER');
     if (uploadProvider) {
         toggleProviderConfig(uploadProvider.value);
@@ -427,7 +536,7 @@ function switchTab(tabId) {
             button.classList.add('bg-white', 'bg-opacity-50', 'text-gray-700', 'hover:bg-opacity-70');
         }
     });
-    
+
     // 更新内容区域
     const sections = document.querySelectorAll('.config-section');
     sections.forEach(section => {
@@ -456,18 +565,31 @@ function toggleProviderConfig(provider) {
 function addArrayItem(key) {
     const container = document.getElementById(`${key}_container`);
     if (!container) return;
-    
-    addArrayItemWithValue(key, '');
+
+    const newItemValue = ''; // Start with an empty value for new items
+    const modelId = addArrayItemWithValue(key, newItemValue); // Add the DOM element
+
+    // If it's a thinking model, also add the corresponding budget map item
+    if (key === 'THINKING_MODELS' && modelId) {
+        createAndAppendBudgetMapItem(newItemValue, 0, modelId); // Default budget 0
+    }
 }
 
-// 添加带值的数组项
+// 添加带值的数组项 (Adds array item DOM, returns modelId if it's a thinking model)
 function addArrayItemWithValue(key, value) {
     const container = document.getElementById(`${key}_container`);
-    if (!container) return;
-    
+    if (!container) return null;
+
+    const isThinkingModel = key === 'THINKING_MODELS';
+    const modelId = isThinkingModel ? generateUUID() : null;
+
     const arrayItem = document.createElement('div');
     // 主容器使用 Flexbox
     arrayItem.className = 'array-item flex items-center mb-2 gap-2'; // 添加 gap-2 来分隔元素
+    if (isThinkingModel) {
+        arrayItem.setAttribute('data-model-id', modelId); // 添加ID属性
+    }
+
 
     // 创建一个包装器 div 来包含输入框和生成按钮
     const inputWrapper = document.createElement('div');
@@ -480,6 +602,11 @@ function addArrayItemWithValue(key, value) {
     input.value = value;
     // 输入框占据包装器内的主要空间，移除边框和圆角，因为包装器已有
     input.className = 'array-input flex-grow px-3 py-2 border-none rounded-l-md focus:outline-none'; // 移除右侧圆角
+    if (isThinkingModel) {
+         input.setAttribute('data-model-id', modelId); // 添加ID属性
+         input.placeholder = '思考模型名称'; // 添加占位符
+    }
+
 
     inputWrapper.appendChild(input); // 将输入框添加到包装器
 
@@ -509,7 +636,21 @@ function addArrayItemWithValue(key, value) {
     removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
     removeBtn.title = '删除';
     removeBtn.addEventListener('click', function() {
-        arrayItem.remove();
+        const currentArrayItem = this.closest('.array-item');
+        if (isThinkingModel) {
+            const currentModelId = currentArrayItem.getAttribute('data-model-id');
+            // 查找并删除对应的预算映射项
+            const budgetMapItem = document.querySelector(`.map-item[data-model-id="${currentModelId}"]`);
+            if (budgetMapItem) {
+                budgetMapItem.remove();
+                 // 检查预算映射容器是否为空，如果是，则添加回占位符
+                const budgetContainer = document.getElementById('THINKING_BUDGET_MAP_container');
+                if (budgetContainer && budgetContainer.children.length === 0) {
+                    budgetContainer.innerHTML = '<div class="text-gray-500 text-sm italic">请在上方添加思考模型，预算将自动关联。</div>';
+                }
+            }
+        }
+        currentArrayItem.remove(); // 删除模型项本身
     });
 
     // 将包装器（包含输入框和可能的生成按钮）和删除按钮添加到主容器
@@ -518,12 +659,83 @@ function addArrayItemWithValue(key, value) {
 
     // 插入到容器末尾
     container.appendChild(arrayItem);
+
+    // 返回生成的 ID (如果是思考模型) 或 null
+    return isThinkingModel ? modelId : null;
+    // Note: This function no longer automatically calls createAndAppendBudgetMapItem
 }
+
+
+// --- 新增：专门用于创建和添加预算映射 DOM 元素 ---
+function createAndAppendBudgetMapItem(mapKey, mapValue, modelId) {
+   const container = document.getElementById('THINKING_BUDGET_MAP_container');
+   if (!container) {
+       console.error("Cannot add budget item: THINKING_BUDGET_MAP_container not found!");
+       return;
+   }
+
+   // If container currently only has the placeholder, clear it
+   const placeholder = container.querySelector('.text-gray-500.italic');
+   // Check if the only child is the placeholder before clearing
+   if (placeholder && container.children.length === 1 && container.firstChild === placeholder) {
+       container.innerHTML = '';
+   }
+
+   const mapItem = document.createElement('div');
+   mapItem.className = 'map-item flex items-center mb-2 gap-2';
+   mapItem.setAttribute('data-model-id', modelId); // Add ID attribute
+
+   // Key Input (Model Name) - Read-only
+   const keyInput = document.createElement('input');
+   keyInput.type = 'text';
+   keyInput.value = mapKey;
+   keyInput.placeholder = '模型名称 (自动关联)';
+   keyInput.readOnly = true;
+   keyInput.className = 'map-key-input flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none bg-gray-100 text-gray-500';
+   keyInput.setAttribute('data-model-id', modelId);
+
+   // Value Input (Budget) - Integer
+   const valueInput = document.createElement('input');
+   valueInput.type = 'number';
+   // Ensure mapValue is treated as integer, default to 0 if invalid
+   const intValue = parseInt(mapValue, 10);
+   valueInput.value = isNaN(intValue) ? 0 : intValue;
+   valueInput.placeholder = '预算 (整数)';
+   valueInput.className = 'map-value-input w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50';
+   valueInput.min = 0; // 添加最小值
+   valueInput.max = 24576; // 添加最大值
+   valueInput.addEventListener('input', function() {
+        // 限制输入为0到24576之间的整数
+        let value = this.value.replace(/[^0-9]/g, '');
+        if (value !== '') {
+            value = parseInt(value, 10);
+            if (value < 0) value = 0;
+            if (value > 24576) value = 24576;
+        }
+        this.value = value;
+   });
+
+   // Remove Button - Removed for budget map items
+   // const removeBtn = document.createElement('button');
+   // removeBtn.type = 'button';
+   // removeBtn.className = 'remove-btn text-gray-300 cursor-not-allowed focus:outline-none'; // Kept original class for reference
+   // removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+   // removeBtn.title = '请从上方模型列表删除';
+   // removeBtn.disabled = true;
+
+   mapItem.appendChild(keyInput);
+   mapItem.appendChild(valueInput);
+   // mapItem.appendChild(removeBtn); // Do not append the remove button
+
+   container.appendChild(mapItem);
+}
+// --- 结束：专门的预算映射项创建函数 ---
+
 
 // 收集表单数据
 function collectFormData() {
     const formData = {};
-    
+
     // 处理普通输入
     const inputs = document.querySelectorAll('input[type="text"], input[type="number"], select');
     inputs.forEach(input => {
@@ -531,17 +743,18 @@ function collectFormData() {
             if (input.type === 'number') {
                 formData[input.name] = parseFloat(input.value);
             } else {
+                // 确保 select 元素的值也被正确收集
                 formData[input.name] = input.value;
             }
         }
     });
-    
+
     // 处理复选框
     const checkboxes = document.querySelectorAll('input[type="checkbox"]');
     checkboxes.forEach(checkbox => {
         formData[checkbox.name] = checkbox.checked;
     });
-    
+
     // 处理数组
     const arrayContainers = document.querySelectorAll('.array-container');
     arrayContainers.forEach(container => {
@@ -549,7 +762,25 @@ function collectFormData() {
         const arrayInputs = container.querySelectorAll('.array-input');
         formData[key] = Array.from(arrayInputs).map(input => input.value).filter(value => value.trim() !== '');
     });
-    
+
+    // --- 新增：处理 THINKING_BUDGET_MAP ---
+    const budgetMapContainer = document.getElementById('THINKING_BUDGET_MAP_container');
+    if (budgetMapContainer) {
+        formData['THINKING_BUDGET_MAP'] = {};
+        const mapItems = budgetMapContainer.querySelectorAll('.map-item');
+        mapItems.forEach(item => {
+            const keyInput = item.querySelector('.map-key-input');
+            const valueInput = item.querySelector('.map-value-input');
+            if (keyInput && valueInput && keyInput.value.trim() !== '') {
+                // 将预算值解析为整数
+                const budgetValue = parseInt(valueInput.value, 10); // 使用基数10
+                // 检查是否为有效数字，如果不是则默认为 0
+                formData['THINKING_BUDGET_MAP'][keyInput.value.trim()] = isNaN(budgetValue) ? 0 : budgetValue;
+            }
+        });
+    }
+    // --- 结束：处理 THINKING_BUDGET_MAP ---
+
     return formData;
 }
 
@@ -590,7 +821,7 @@ async function saveConfig() {
 
         // 1. 停止定时任务
         await stopScheduler();
-        
+
         const response = await fetch('/api/config', {
             method: 'PUT',
             headers: {
@@ -598,16 +829,16 @@ async function saveConfig() {
             },
             body: JSON.stringify(formData)
         });
-        
+
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
         }
-        
+
         const result = await response.json();
-        
+
         // 移除居中的 saveStatus 提示
-        
+
         showNotification('配置保存成功', 'success');
 
         // 3. 启动新的定时任务
@@ -618,21 +849,21 @@ async function saveConfig() {
         // 保存失败时，也尝试重启定时任务，以防万一
         await startScheduler();
         // 移除居中的 saveStatus 提示
-        
+
         showNotification('保存配置失败: ' + error.message, 'error');
     }
 }
 
 // 重置配置 (现在只负责打开模态框)
-function resetConfig(event) { 
+function resetConfig(event) {
     // 阻止事件冒泡和默认行为
     if (event) {
         event.preventDefault();
         event.stopPropagation();
     }
-    
+
     console.log('resetConfig called. Event target:', event ? event.target.id : 'No event');
-    
+
     // 确保只有当事件来自重置按钮时才显示模态框
     if (!event || event.target.id === 'resetBtn' || event.currentTarget.id === 'resetBtn') {
         const resetConfirmModal = document.getElementById('resetConfirmModal');
@@ -723,7 +954,7 @@ function scrollToBottom() {
 // 切换滚动按钮显示
 function toggleScrollButtons() {
     const scrollButtons = document.querySelector('.scroll-buttons');
-    
+
     if (window.scrollY > 200) {
         scrollButtons.style.display = 'flex';
     } else {
@@ -743,3 +974,17 @@ function generateRandomToken() {
     return result;
 }
 // --- 结束：生成随机令牌函数 ---
+
+// --- 修改：添加思考模型预算映射项 (现在由添加思考模型触发) ---
+// function addBudgetMapItem() {
+//    // 不再需要手动添加
+// }
+
+// Deprecated: This function is now effectively replaced by createAndAppendBudgetMapItem
+// for the initial population logic. It delegates to the new function if called.
+function addBudgetMapItemWithValue(mapKey, mapValue, modelId) {
+    // console.warn("Deprecated call to addBudgetMapItemWithValue, use createAndAppendBudgetMapItem instead for population.");
+    // Delegate to the new function which handles DOM creation
+    createAndAppendBudgetMapItem(mapKey, mapValue, modelId);
+}
+/* --- 结束：(addBudgetMapItemWithValue 已弃用) --- */

@@ -26,7 +26,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                         f"Formatted request body:\n{json.dumps(formatted_body, indent=2, ensure_ascii=False)}"
                     )
                 except json.JSONDecodeError:
-                    logger.info("Request body is not valid JSON.")
+                    logger.error("Request body is not valid JSON.")
         except Exception as e:
             logger.error(f"Error reading request body: {str(e)}")
 

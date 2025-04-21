@@ -108,6 +108,12 @@ def _build_payload(model: str, request: GeminiRequest) -> Dict[str, Any]:
     if model.endswith("-image") or model.endswith("-image-generation"):
         payload.pop("systemInstruction")
         payload["generationConfig"]["responseModalities"] = ["Text", "Image"]
+        
+    if model.endswith("-non-thinking"):
+        payload["generationConfig"]["thinkingConfig"] = {"thinkingBudget": 0} 
+    if model in settings.THINKING_BUDGET_MAP:
+        payload["generationConfig"]["thinkingConfig"] = {"thinkingBudget": settings.THINKING_BUDGET_MAP.get(model,1000)}
+
     return payload
 
 
@@ -156,10 +162,6 @@ class GeminiChatService:
 
         try:
             response = await self.api_client.generate_content(payload, model, api_key)
-            # Assuming success if no exception is raised and response is received
-            # The actual status code might be within the response structure or headers,
-            # but api_client doesn't seem to expose it directly here.
-            # We'll assume 200 for success if no exception.
             is_success = True
             status_code = 200 # Assume 200 on success
             return self.response_handler.handle_response(response, model, stream=False)
@@ -178,7 +180,7 @@ class GeminiChatService:
             await add_error_log(
                 gemini_key=api_key,
                 model_name=model,
-                error_type="gemini_chat_service",
+                error_type="gemini-chat-non-stream",
                 error_log=error_log_msg,
                 error_code=status_code,
                 request_msg=payload
@@ -204,96 +206,90 @@ class GeminiChatService:
         retries = 0
         max_retries = settings.MAX_RETRIES
         payload = _build_payload(model, request)
-        start_time = time.perf_counter() # Record start time before loop
-        request_datetime = datetime.datetime.now()
         is_success = False
         status_code = None
-        final_api_key = api_key # Store the initial key
+        final_api_key = api_key
 
-        try:
-            while retries < max_retries:
-                current_attempt_key = api_key # Key used for this attempt
-                final_api_key = current_attempt_key # Update final key used
-                try:
-                    async for line in self.api_client.stream_generate_content(
-                        payload, model, current_attempt_key
-                    ):
-                        # print(line)
-                        if line.startswith("data:"):
-                            line = line[6:]
-                            response_data = self.response_handler.handle_response(
-                                json.loads(line), model, stream=True
-                            )
-                            text = self._extract_text_from_response(response_data)
-                            # 如果有文本内容，且开启了流式输出优化器，则使用流式输出优化器处理
-                            if text and settings.STREAM_OPTIMIZER_ENABLED:
-                                # 使用流式输出优化器处理文本输出
-                                async for (
-                                    optimized_chunk
-                                ) in gemini_optimizer.optimize_stream_output(
-                                    text,
-                                    lambda t: self._create_char_response(response_data, t),
-                                    lambda c: "data: " + json.dumps(c) + "\n\n",
-                                ):
-                                    yield optimized_chunk
-                            else:
-                                # 如果没有文本内容（如工具调用等），整块输出
-                                yield "data: " + json.dumps(response_data) + "\n\n"
-                    logger.info("Streaming completed successfully")
-                    is_success = True
-                    status_code = 200 # Assume 200 on success
-                    break # Exit loop on success
-                except Exception as e:
-                    retries += 1
-                    is_success = False # Mark as failed for this attempt
-                    error_log_msg = str(e)
-                    logger.warning(
-                        f"Streaming API call failed with error: {error_log_msg}. Attempt {retries} of {max_retries}"
-                    )
-                    # Parse error code for logging
-                    match = re.search(r"status code (\d+)", error_log_msg)
-                    if match:
-                        status_code = int(match.group(1))
-                    else:
-                        status_code = 500 # Default if parsing fails
-
-                    # Log error to error log table
-                    await add_error_log(
-                        gemini_key=current_attempt_key, # Log key used for this failed attempt
-                        model_name=model,
-                        error_log=error_log_msg,
-                        error_code=status_code,
-                        request_msg=payload
-                    )
-
-                    # Attempt to switch API Key
-                    api_key = await self.key_manager.handle_api_failure(current_attempt_key, retries)
-                    if api_key:
-                        logger.info(f"Switched to new API key: {api_key}")
-                    else: # No more keys or retries exceeded by handle_api_failure logic
-                         logger.error(f"No valid API key available after {retries} retries.")
-                         break # Exit loop if no key available
-
-                    if retries >= max_retries:
-                        logger.error(
-                            f"Max retries ({max_retries}) reached for streaming."
+        while retries < max_retries:
+            request_datetime = datetime.datetime.now()
+            start_time = time.perf_counter()
+            current_attempt_key = api_key
+            final_api_key = current_attempt_key # Update final key used
+            try:
+                async for line in self.api_client.stream_generate_content(
+                    payload, model, current_attempt_key
+                ):
+                    # print(line)
+                    if line.startswith("data:"):
+                        line = line[6:]
+                        response_data = self.response_handler.handle_response(
+                            json.loads(line), model, stream=True
                         )
-                        break # Exit loop after max retries
-        finally:
-            # Log the final outcome of the streaming request
-            end_time = time.perf_counter()
-            latency_ms = int((end_time - start_time) * 1000)
-            await add_request_log(
-                model_name=model,
-                api_key=final_api_key, # Log the last key used
-                is_success=is_success, # Log the final success status
-                status_code=status_code, # Log the last known status code
-                latency_ms=latency_ms, # Log total time including retries
-                request_time=request_datetime
-            )
-            # If the loop finished due to failure, ensure an exception is raised if not already handled
-            if not is_success and retries >= max_retries:
-                 # We need to raise an exception here if the loop exited due to max retries failure
-                 # However, the original code structure doesn't explicitly raise here after the loop.
-                 # For now, we just log. Consider raising HTTPException if needed.
-                 pass
+                        text = self._extract_text_from_response(response_data)
+                        # 如果有文本内容，且开启了流式输出优化器，则使用流式输出优化器处理
+                        if text and settings.STREAM_OPTIMIZER_ENABLED:
+                            # 使用流式输出优化器处理文本输出
+                            async for (
+                                optimized_chunk
+                            ) in gemini_optimizer.optimize_stream_output(
+                                text,
+                                lambda t: self._create_char_response(response_data, t),
+                                lambda c: "data: " + json.dumps(c) + "\n\n",
+                            ):
+                                yield optimized_chunk
+                        else:
+                            # 如果没有文本内容（如工具调用等），整块输出
+                            yield "data: " + json.dumps(response_data) + "\n\n"
+                logger.info("Streaming completed successfully")
+                is_success = True
+                status_code = 200
+                break
+            except Exception as e:
+                retries += 1
+                is_success = False
+                error_log_msg = str(e)
+                logger.warning(
+                    f"Streaming API call failed with error: {error_log_msg}. Attempt {retries} of {max_retries}"
+                )
+                # Parse error code for logging
+                match = re.search(r"status code (\d+)", error_log_msg)
+                if match:
+                    status_code = int(match.group(1))
+                else:
+                    status_code = 500
+
+                # Log error to error log table
+                await add_error_log(
+                    gemini_key=current_attempt_key, # Log key used for this failed attempt
+                    model_name=model,
+                    error_type="gemini-chat-stream",
+                    error_log=error_log_msg,
+                    error_code=status_code,
+                    request_msg=payload
+                )
+
+                # Attempt to switch API Key
+                api_key = await self.key_manager.handle_api_failure(current_attempt_key, retries)
+                if api_key:
+                    logger.info(f"Switched to new API key: {api_key}")
+                else: # No more keys or retries exceeded by handle_api_failure logic
+                        logger.error(f"No valid API key available after {retries} retries.")
+                        break # Exit loop if no key available
+
+                if retries >= max_retries:
+                    logger.error(
+                        f"Max retries ({max_retries}) reached for streaming."
+                    )
+                    break # Exit loop after max retries
+            finally:
+                # Log the final outcome of the streaming request
+                end_time = time.perf_counter()
+                latency_ms = int((end_time - start_time) * 1000)
+                await add_request_log(
+                    model_name=model,
+                    api_key=final_api_key, # Log the last key used
+                    is_success=is_success, # Log the final success status
+                    status_code=status_code, # Log the last known status code
+                    latency_ms=latency_ms, # Log total time including retries
+                    request_time=request_datetime
+                )

@@ -75,7 +75,7 @@ async def chat_completion(
         api_key = await key_manager.get_paid_key()
     logger.info("-" * 50 + "chat_completion" + "-" * 50)
     logger.info(f"Handling chat completion request for model: {request.model}")
-    logger.info(f"Request: \n{request.model_dump_json(indent=2)}")
+    logger.debug(f"Request: \n{request.model_dump_json(indent=2)}")
     logger.info(f"Using API key: {api_key}")
 
     if not model_service.check_model_support(request.model):
@@ -86,7 +86,7 @@ async def chat_completion(
     try:
         # 如果model是imagen3,使用paid_key
         if request.model == f"{settings.CREATE_IMAGE_MODEL}-chat":
-            response = await chat_service.create_image_chat_completion(request=request)
+            response = await chat_service.create_image_chat_completion(request, api_key)
         else:
             response = await chat_service.create_chat_completion(request, api_key)
         # 处理流式响应

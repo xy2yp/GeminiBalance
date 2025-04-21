@@ -1,4 +1,3 @@
-# app/services/chat/message_converter.py
 
 from abc import ABC, abstractmethod
 import json

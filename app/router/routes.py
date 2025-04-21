@@ -8,9 +8,9 @@ from fastapi.templating import Jinja2Templates
 
 from app.core.security import verify_auth_token
 from app.log.logger import get_routes_logger
-from app.router import gemini_routes, openai_routes, config_routes, log_routes, scheduler_routes # 新增导入
+from app.router import gemini_routes, openai_routes, config_routes, log_routes, scheduler_routes, stats_routes # 新增导入 stats_routes
 from app.service.key.key_manager import get_key_manager_instance
-from app.service.stats_service import get_api_usage_stats, get_api_call_details # <-- Import stats service and details function
+from app.service.stats_service import StatsService
 
 logger = get_routes_logger()
 
@@ -32,6 +32,7 @@ def setup_routers(app: FastAPI) -> None:
     app.include_router(config_routes.router)
     app.include_router(log_routes.router)
     app.include_router(scheduler_routes.router) # 新增包含 scheduler 路由
+    app.include_router(stats_routes.router) # 包含 stats API 路由
 
     # 添加页面路由
     setup_page_routes(app)
@@ -92,8 +93,8 @@ def setup_page_routes(app: FastAPI) -> None:
             valid_key_count = len(keys_status["valid_keys"])
             invalid_key_count = len(keys_status["invalid_keys"])
 
-            # Get API usage stats
-            api_stats = await get_api_usage_stats()
+            stats_service = StatsService()
+            api_stats = await stats_service.get_api_usage_stats()
             logger.info(f"API stats retrieved: {api_stats}")
 
             logger.info(f"Keys status retrieved successfully. Total keys: {total_keys}")
@@ -180,7 +181,9 @@ def setup_api_stats_routes(app: FastAPI) -> None:
                 return {"error": "Unauthorized"}, 401
 
             logger.info(f"Fetching API call details for period: {period}")
-            details = await get_api_call_details(period)
+            # Use the service instance here as well
+            stats_service = StatsService() # Create an instance
+            details = await stats_service.get_api_call_details(period)
             return details
         except ValueError as e:
             logger.warning(f"Invalid period requested for API stats details: {period} - {str(e)}")

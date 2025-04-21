@@ -914,3 +914,109 @@ function renderApiCallDetails(data, container) {
 
     container.innerHTML = tableHtml;
 }
+
+// --- 密钥使用详情模态框逻辑 ---
+
+// 显示密钥使用详情模态框
+window.showKeyUsageDetails = async function(key) {
+    const modal = document.getElementById('keyUsageDetailsModal');
+    const contentArea = document.getElementById('keyUsageDetailsContent');
+    const titleElement = document.getElementById('keyUsageDetailsModalTitle');
+    const keyDisplay = key.substring(0, 4) + '...' + key.substring(key.length - 4);
+
+    if (!modal || !contentArea || !titleElement) {
+        console.error('无法找到密钥使用详情模态框元素');
+        showNotification('无法显示详情，页面元素缺失', 'error');
+        return;
+    }
+
+    // 设置标题
+    titleElement.textContent = `密钥 ${keyDisplay} - 最近24小时请求详情`;
+
+    // 显示模态框并设置加载状态
+    modal.classList.remove('hidden');
+    contentArea.innerHTML = `
+        <div class="text-center py-10">
+             <i class="fas fa-spinner fa-spin text-primary-600 text-3xl"></i>
+             <p class="text-gray-500 mt-2">加载中...</p>
+        </div>`;
+
+    try {
+        // 调用新的后端 API 获取数据
+        // 注意：后端需要实现 /api/key-usage-details/{key} 端点
+        const response = await fetch(`/api/key-usage-details/${key}`);
+        if (!response.ok) {
+            let errorMsg = `服务器错误: ${response.status}`;
+            try {
+                const errorData = await response.json();
+                errorMsg = errorData.detail || errorMsg; // 假设后端错误信息在 detail 字段
+            } catch (e) { /* 忽略解析错误 */ }
+            throw new Error(errorMsg);
+        }
+        const data = await response.json();
+
+        // 渲染数据
+        renderKeyUsageDetails(data, contentArea);
+
+    } catch (error) {
+        console.error('获取密钥使用详情失败:', error);
+        contentArea.innerHTML = `
+            <div class="text-center py-10 text-danger-500">
+                <i class="fas fa-exclamation-triangle text-3xl"></i>
+                <p class="mt-2">加载失败: ${error.message}</p>
+            </div>`;
+    }
+}
+
+// 关闭密钥使用详情模态框
+window.closeKeyUsageDetailsModal = function() {
+    const modal = document.getElementById('keyUsageDetailsModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+// 渲染密钥使用详情到模态框 (这个函数主要由 showKeyUsageDetails 调用，不一定需要全局，但保持一致性)
+window.renderKeyUsageDetails = function(data, container) {
+    // data 预期格式: { "model_name1": count1, "model_name2": count2, ... }
+    if (!data || Object.keys(data).length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-10 text-gray-500">
+                <i class="fas fa-info-circle text-3xl"></i>
+                <p class="mt-2">该密钥在最近24小时内没有调用记录。</p>
+            </div>`;
+        return;
+    }
+
+    // 创建表格
+    let tableHtml = `
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">模型名称</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">调用次数 (24h)</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+    `;
+
+    // 排序模型（可选，按调用次数降序）
+    const sortedModels = Object.entries(data).sort(([, countA], [, countB]) => countB - countA);
+
+    // 填充表格行
+    sortedModels.forEach(([model, count]) => {
+        tableHtml += `
+            <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${model}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${count}</td>
+            </tr>
+        `;
+    });
+
+    tableHtml += `
+            </tbody>
+        </table>
+    `;
+
+    container.innerHTML = tableHtml;
+}

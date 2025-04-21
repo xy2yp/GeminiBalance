@@ -72,7 +72,6 @@ async def get_error_logs_api(
             error_search=error_search, # 数据库查询需要处理这个
             start_date=start_date,
             end_date=end_date,
-            # include_error_code=True # 如果需要显式传递
         )
         # Fetch total count with the same search parameters
         total_count = await get_error_logs_count(

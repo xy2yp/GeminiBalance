@@ -196,6 +196,20 @@
         <a href="https://github.com/snailyp/gemini-balance" target="_blank" class="text-primary-600 hover:text-primary-800 transition duration-300">
             <i class="fab fa-github"></i> GitHub
         </a>
+        {% if request and request.app.state.update_info %}
+            {% set update_info = request.app.state.update_info %}
+            <span class="mx-1">|</span>
+            <span class="text-xs text-gray-500">v{{ update_info.current_version }}</span>
+            {% if update_info.update_available %}
+                <span class="mx-1">|</span>
+                <a href="https://github.com/snailyp/gemini-balance/releases/latest" target="_blank" class="text-yellow-600 hover:text-yellow-800 transition duration-300 animate-pulse">
+                    <i class="fas fa-arrow-up"></i> 新版本: v{{ update_info.latest_version }}
+                </a>
+            {% elif update_info.error_message and update_info.error_message != 'Checking...' %}
+                 <span class="mx-1">|</span>
+                 <span class="text-xs text-red-500" title="{{ update_info.error_message }}">更新检查失败</span>
+            {% endif %}
+        {% endif %}
     </div>
 
     <!-- 通用JS -->

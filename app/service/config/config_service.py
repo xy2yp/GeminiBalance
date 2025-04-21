@@ -31,7 +31,7 @@ class ConfigService:
         for key, value in config_data.items():
             if hasattr(settings, key):
                 setattr(settings, key, value)
-                logger.info(f"Updated setting in memory: {key}") 
+                logger.debug(f"Updated setting in memory: {key}") 
         
         # 获取现有设置
         existing_settings_raw: List[Dict[str, Any]] = await get_all_settings()
@@ -46,6 +46,8 @@ class ConfigService:
         for key, value in config_data.items():
             # 处理不同类型的值
             if isinstance(value, list):
+                db_value = json.dumps(value)
+            elif isinstance(value, dict): # 新增对 dict 类型的处理
                 db_value = json.dumps(value)
             elif isinstance(value, bool):
                 db_value = str(value).lower()

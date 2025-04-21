@@ -7,9 +7,9 @@ from fastapi.responses import JSONResponse
 
 from app.core.security import verify_auth_token # 导入 verify_auth_token
 from app.scheduler.key_checker import start_scheduler, stop_scheduler
-from app.log.logger import get_routes_logger # 使用路由日志记录器
+from app.log.logger import get_scheduler_routes # 使用路由日志记录器
 
-logger = get_routes_logger()
+logger = get_scheduler_routes()
 
 router = APIRouter(
     prefix="/api/scheduler",

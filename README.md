@@ -2,6 +2,9 @@
 
 > ⚠️ 本项目采用 CC BY-NC 4.0（署名-非商业性使用）协议，禁止任何形式的商业倒卖服务，详见 LICENSE 文件。
 
+> 本人从未在各个平台售卖服务，如有遇到售卖此服务者，那一定是倒卖狗，大家切记不要上当受骗。（倒卖狗死全家！
+）
+
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-green.svg)](https://fastapi.tiangolo.com/)
 [![Uvicorn](https://img.shields.io/badge/Uvicorn-running-purple.svg)](https://www.uvicorn.org/)
@@ -156,12 +159,15 @@ app/
 | `TOOLS_CODE_EXECUTION_ENABLED` | 可选，是否启用代码执行工具                                     | `false`                                               |
 | `SHOW_SEARCH_LINK`           | 可选，是否在响应中显示搜索结果链接                             | `true`                                                |
 | `SHOW_THINKING_PROCESS`      | 可选，是否显示模型思考过程                                     | `true`                                                |
+| `THINKING_MODELS`            | 可选，支持思考功能的模型列表                                   | `[]`                                                  |
+| `THINKING_BUDGET_MAP`        | 可选，思考功能预算映射 (模型名:预算值)                         | `{}`                                                  |
 | `BASE_URL`                   | 可选，Gemini API 基础 URL，默认无需修改                        | `https://generativelanguage.googleapis.com/v1beta`    |
 | `MAX_FAILURES`               | 可选，允许单个key失败的次数                                    | `3`                                                   |
 | `MAX_RETRIES`                | 可选，API 请求失败时的最大重试次数                             | `3`                                                   |
 | `CHECK_INTERVAL_HOURS`       | 可选，检查禁用 Key 是否恢复的时间间隔 (小时)                   | `1`                                                   |
 | `TIMEZONE`                   | 可选，应用程序使用的时区                                       | `Asia/Shanghai`                                       |
 | `TIME_OUT`                   | 可选，请求超时时间 (秒)                                        | `300`                                                 |
+| `LOG_LEVEL`                  | 可选，日志级别，例如 DEBUG, INFO, WARNING, ERROR, CRITICAL     | `INFO`                                                |
 | **图像生成相关**             |                                                          |                                                       |
 | `PAID_KEY`                   | 可选，付费版API Key，用于图片生成等高级功能                    | `your-paid-api-key`                                   |
 | `CREATE_IMAGE_MODEL`         | 可选，图片生成模型                                             | `imagen-3.0-generate-002`                             |
@@ -199,7 +205,7 @@ app/
 
 欢迎提交 Pull Request 或 Issue。
 
-## 特别鸣谢
+## 🎉 特别鸣谢
 
 特别鸣谢以下项目和平台为本项目提供图床服务:
 

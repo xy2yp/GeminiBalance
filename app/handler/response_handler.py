@@ -1,4 +1,3 @@
-# app/services/chat/response_handler.py
 
 import base64
 import json

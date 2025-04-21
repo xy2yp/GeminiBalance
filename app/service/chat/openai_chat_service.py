@@ -130,6 +130,10 @@ def _build_payload(
         payload["generationConfig"]["maxOutputTokens"] = request.max_tokens
     if request.model.endswith("-image") or request.model.endswith("-image-generation"):
         payload["generationConfig"]["responseModalities"] = ["Text", "Image"]
+    if request.model.endswith("-non-thinking"):
+        payload["generationConfig"]["thinkingConfig"] = {"thinkingBudget": 0} 
+    if request.model in settings.THINKING_BUDGET_MAP:
+        payload["generationConfig"]["thinkingConfig"] = {"thinkingBudget": settings.THINKING_BUDGET_MAP.get(request.model,1000)}
 
     if (
         instruction
@@ -219,7 +223,7 @@ class OpenAIChatService:
             await add_error_log(
                 gemini_key=api_key, # Note: Parameter name is gemini_key in add_error_log
                 model_name=model,
-                error_type="openai_chat_service", # Indicate service type
+                error_type="openai-chat-non-stream",
                 error_log=error_log_msg,
                 error_code=status_code,
                 request_msg=payload
@@ -243,118 +247,117 @@ class OpenAIChatService:
         """处理流式聊天完成，添加重试逻辑"""
         retries = 0
         max_retries = settings.MAX_RETRIES
-        start_time = time.perf_counter() # Record start time before loop
-        request_datetime = datetime.datetime.now()
         is_success = False
         status_code = None
-        final_api_key = api_key # Store the initial key
+        final_api_key = api_key
 
-        try:
-            while retries < max_retries:
-                current_attempt_key = api_key # Key used for this attempt
-                final_api_key = current_attempt_key # Update final key used
-                try:
-                    tool_call_flag = False
-                    async for line in self.api_client.stream_generate_content(
-                        payload, model, current_attempt_key
-                    ):
-                        # print(line)
-                        if line.startswith("data:"):
-                            chunk = json.loads(line[6:])
-                            openai_chunk = self.response_handler.handle_response(
-                                chunk, model, stream=True, finish_reason=None
-                            )
-                            if openai_chunk:
-                                # 提取文本内容
-                                text = self._extract_text_from_openai_chunk(openai_chunk)
-                                if text and settings.STREAM_OPTIMIZER_ENABLED:
-                                    # 使用流式输出优化器处理文本输出
-                                    async for (
-                                        optimized_chunk
-                                    ) in openai_optimizer.optimize_stream_output(
-                                        text,
-                                        lambda t: self._create_char_openai_chunk(
-                                            openai_chunk, t
-                                        ),
-                                        lambda c: f"data: {json.dumps(c)}\n\n",
-                                    ):
-                                        yield optimized_chunk
-                                else:
-                                    # 如果没有文本内容（如工具调用等），整块输出
-                                    if "tool_calls" in json.dumps(openai_chunk):
-                                        tool_call_flag = True
-                                    yield f"data: {json.dumps(openai_chunk)}\n\n"
-                    if tool_call_flag:
-                        yield f"data: {json.dumps(self.response_handler.handle_response({}, model, stream=True, finish_reason='tool_calls'))}\n\n"
-                    else:
-                        yield f"data: {json.dumps(self.response_handler.handle_response({}, model, stream=True, finish_reason='stop'))}\n\n"
-                    yield "data: [DONE]\n\n"
-                    logger.info("Streaming completed successfully")
-                    is_success = True
-                    status_code = 200 # Assume 200 on success
-                    break  # 成功后退出循环
-                except Exception as e:
-                    retries += 1
-                    is_success = False # Mark as failed for this attempt
-                    error_log_msg = str(e)
-                    logger.warning(
-                        f"Streaming API call failed with error: {error_log_msg}. Attempt {retries} of {max_retries}"
-                    )
-                    # Parse error code for logging
-                    match = re.search(r"status code (\d+)", error_log_msg)
-                    if match:
-                        status_code = int(match.group(1))
-                    else:
-                        status_code = 500 # Default if parsing fails
-
-                    # Log error to error log table
-                    await add_error_log(
-                        gemini_key=current_attempt_key, # Note: Parameter name is gemini_key
-                        model_name=model,
-                        error_type="openai_chat_service", # Indicate service type
-                        error_log=error_log_msg,
-                        error_code=status_code,
-                        request_msg=payload
-                    )
-
-                    # Attempt to switch API Key
-                    # Ensure key_manager is available (might need adjustment if not always passed)
-                    if self.key_manager:
-                        api_key = await self.key_manager.handle_api_failure(current_attempt_key, retries)
-                        if api_key:
-                            logger.info(f"Switched to new API key: {api_key}")
-                        else:
-                            logger.error(f"No valid API key available after {retries} retries.")
-                            break # Exit loop if no key available
-                    else:
-                         logger.error("KeyManager not available for retry logic.")
-                         break # Exit loop if key manager is missing
-
-                    if retries >= max_retries:
-                        logger.error(
-                            f"Max retries ({max_retries}) reached for streaming."
+        while retries < max_retries:
+            start_time = time.perf_counter()
+            request_datetime = datetime.datetime.now()
+            current_attempt_key = api_key
+            final_api_key = current_attempt_key
+            try:
+                tool_call_flag = False
+                async for line in self.api_client.stream_generate_content(
+                    payload, model, current_attempt_key
+                ):
+                    if line.startswith("data:"):
+                        chunk = json.loads(line[6:])
+                        openai_chunk = self.response_handler.handle_response(
+                            chunk, model, stream=True, finish_reason=None
                         )
-                        break # Exit loop after max retries
-        finally:
-            # Log the final outcome of the streaming request
-            end_time = time.perf_counter()
-            latency_ms = int((end_time - start_time) * 1000)
-            await add_request_log(
-                model_name=model,
-                api_key=final_api_key, # Log the last key used
-                is_success=is_success, # Log the final success status
-                status_code=status_code, # Log the last known status code
-                latency_ms=latency_ms, # Log total time including retries
-                request_time=request_datetime
-            )
-            # If the loop finished due to failure, yield error and DONE
-            if not is_success and retries >= max_retries:
-                 yield f"data: {json.dumps({'error': 'Streaming failed after retries'})}\n\n"
-                 yield "data: [DONE]\n\n"
+                        if openai_chunk:
+                            # 提取文本内容
+                            text = self._extract_text_from_openai_chunk(openai_chunk)
+                            if text and settings.STREAM_OPTIMIZER_ENABLED:
+                                # 使用流式输出优化器处理文本输出
+                                async for (
+                                    optimized_chunk
+                                ) in openai_optimizer.optimize_stream_output(
+                                    text,
+                                    lambda t: self._create_char_openai_chunk(
+                                        openai_chunk, t
+                                    ),
+                                    lambda c: f"data: {json.dumps(c)}\n\n",
+                                ):
+                                    yield optimized_chunk
+                            else:
+                                # 如果没有文本内容（如工具调用等），整块输出
+                                if "tool_calls" in json.dumps(openai_chunk):
+                                    tool_call_flag = True
+                                yield f"data: {json.dumps(openai_chunk)}\n\n"
+                if tool_call_flag:
+                    yield f"data: {json.dumps(self.response_handler.handle_response({}, model, stream=True, finish_reason='tool_calls'))}\n\n"
+                else:
+                    yield f"data: {json.dumps(self.response_handler.handle_response({}, model, stream=True, finish_reason='stop'))}\n\n"
+                yield "data: [DONE]\n\n"
+                logger.info("Streaming completed successfully")
+                is_success = True
+                status_code = 200 # Assume 200 on success
+                break  # 成功后退出循环
+            except Exception as e:
+                retries += 1
+                is_success = False
+                error_log_msg = str(e)
+                logger.warning(
+                    f"Streaming API call failed with error: {error_log_msg}. Attempt {retries} of {max_retries}"
+                )
+                # Parse error code for logging
+                match = re.search(r"status code (\d+)", error_log_msg)
+                if match:
+                    status_code = int(match.group(1))
+                else:
+                    status_code = 500 # Default if parsing fails
+
+                # Log error to error log table
+                await add_error_log(
+                    gemini_key=current_attempt_key,
+                    model_name=model,
+                    error_type="openai-chat-stream",
+                    error_log=error_log_msg,
+                    error_code=status_code,
+                    request_msg=payload
+                )
+
+                # Attempt to switch API Key
+                # Ensure key_manager is available (might need adjustment if not always passed)
+                if self.key_manager:
+                    api_key = await self.key_manager.handle_api_failure(current_attempt_key, retries)
+                    if api_key:
+                        logger.info(f"Switched to new API key: {api_key}")
+                    else:
+                        logger.error(f"No valid API key available after {retries} retries.")
+                        break # Exit loop if no key available
+                else:
+                        logger.error("KeyManager not available for retry logic.")
+                        break # Exit loop if key manager is missing
+
+                if retries >= max_retries:
+                    logger.error(
+                        f"Max retries ({max_retries}) reached for streaming."
+                    )
+                    break # Exit loop after max retries
+            finally:
+                # Log the final outcome of the streaming request
+                end_time = time.perf_counter()
+                latency_ms = int((end_time - start_time) * 1000)
+                await add_request_log(
+                    model_name=model,
+                    api_key=final_api_key, # Log the last key used
+                    is_success=is_success, # Log the final success status
+                    status_code=status_code, # Log the last known status code
+                    latency_ms=latency_ms, # Log total time including retries
+                    request_time=request_datetime
+                )
+                # If the loop finished due to failure, yield error and DONE
+                if not is_success and retries >= max_retries:
+                    yield f"data: {json.dumps({'error': 'Streaming failed after retries'})}\n\n"
+                    yield "data: [DONE]\n\n"
 
     async def create_image_chat_completion(
         self,
         request: ChatRequest,
+        api_key: str
     ) -> Union[Dict[str, Any], AsyncGenerator[str, None]]:
 
         image_generate_request = ImageGenerationRequest()
@@ -364,41 +367,116 @@ class OpenAIChatService:
         )
 
         if request.stream:
-            return self._handle_stream_image_completion(request.model, image_res)
+            return self._handle_stream_image_completion(request.model, image_res, api_key)
         else:
-            return self._handle_normal_image_completion(request.model, image_res)
+            return await self._handle_normal_image_completion(request.model, image_res, api_key)
 
     async def _handle_stream_image_completion(
-        self, model: str, image_data: str
+        self, model: str, image_data: str, api_key:str
     ) -> AsyncGenerator[str, None]:
-        if image_data:
-            openai_chunk = self.response_handler.handle_image_chat_response(
-                image_data, model, stream=True, finish_reason=None
+        logger.info(f"Starting stream image completion for model: {model}")
+        start_time = time.perf_counter()
+        request_datetime = datetime.datetime.now() # Although not used for DB log here
+        is_success = False
+        status_code = None # Although not used for DB log here
+
+        try:
+            if image_data:
+                openai_chunk = self.response_handler.handle_image_chat_response(
+                    image_data, model, stream=True, finish_reason=None
+                )
+                if openai_chunk:
+                    # 提取文本内容
+                    text = self._extract_text_from_openai_chunk(openai_chunk)
+                    if text:
+                        # 使用流式输出优化器处理文本输出
+                        async for (
+                            optimized_chunk
+                        ) in openai_optimizer.optimize_stream_output(
+                            text,
+                            lambda t: self._create_char_openai_chunk(openai_chunk, t),
+                            lambda c: f"data: {json.dumps(c)}\n\n",
+                        ):
+                            yield optimized_chunk
+                    else:
+                        # 如果没有文本内容（如图片URL等），整块输出
+                        yield f"data: {json.dumps(openai_chunk)}\n\n"
+            yield f"data: {json.dumps(self.response_handler.handle_response({}, model, stream=True, finish_reason='stop'))}\n\n"
+            logger.info(f"Stream image completion finished successfully for model: {model}")
+            is_success = True
+            status_code = 200
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            is_success = False
+            error_log_msg = f"Stream image completion failed for model {model}: {e}"
+            logger.error(error_log_msg)
+            status_code = 500 # Default error code
+            await add_error_log(
+                gemini_key=api_key,
+                model_name=model,
+                error_type="openai-image-stream", # Specific error type
+                error_log=error_log_msg,
+                error_code=status_code,
+                request_msg={"image_data_truncated": image_data[:1000]} # Log truncated data
             )
-            if openai_chunk:
-                # 提取文本内容
-                text = self._extract_text_from_openai_chunk(openai_chunk)
-                if text:
-                    # 使用流式输出优化器处理文本输出
-                    async for (
-                        optimized_chunk
-                    ) in openai_optimizer.optimize_stream_output(
-                        text,
-                        lambda t: self._create_char_openai_chunk(openai_chunk, t),
-                        lambda c: f"data: {json.dumps(c)}\n\n",
-                    ):
-                        yield optimized_chunk
-                else:
-                    # 如果没有文本内容（如图片URL等），整块输出
-                    yield f"data: {json.dumps(openai_chunk)}\n\n"
-        yield f"data: {json.dumps(self.response_handler.handle_response({}, model, stream=True, finish_reason='stop'))}\n\n"
-        yield "data: [DONE]\n\n"
-        logger.info("Image chat streaming completed successfully")
+            yield f"data: {json.dumps({'error': error_log_msg})}\n\n" # Send error to client
+            yield "data: [DONE]\n\n" # Still need DONE message
+            # Re-raising might break the stream, decide if needed
+        finally:
+            end_time = time.perf_counter()
+            latency_ms = int((end_time - start_time) * 1000)
+            logger.info(f"Stream image completion for model {model} took {latency_ms} ms. Success: {is_success}")
+            await add_request_log(
+                model_name=model,
+                api_key=api_key,
+                is_success=is_success,
+                status_code=status_code,
+                latency_ms=latency_ms,
+                request_time=request_datetime
+            )
 
-    def _handle_normal_image_completion(
-        self, model: str, image_data: str
+    async def _handle_normal_image_completion(
+        self, model: str, image_data: str, api_key: str # Add api_key parameter
     ) -> Dict[str, Any]:
+        logger.info(f"Starting normal image completion for model: {model}")
+        start_time = time.perf_counter()
+        request_datetime = datetime.datetime.now() # Although not used for DB log here
+        is_success = False
+        status_code = None # Although not used for DB log here
+        result = None
 
-        return self.response_handler.handle_image_chat_response(
-            image_data, model, stream=False, finish_reason="stop"
-        )
+        try:
+            result = self.response_handler.handle_image_chat_response(
+                image_data, model, stream=False, finish_reason="stop"
+            )
+            logger.info(f"Normal image completion finished successfully for model: {model}")
+            is_success = True
+            status_code = 200
+            return result
+        except Exception as e:
+            is_success = False
+            error_log_msg = f"Normal image completion failed for model {model}: {e}"
+            logger.error(error_log_msg)
+            status_code = 500 # Default error code
+            await add_error_log(
+                gemini_key=api_key,
+                model_name=model,
+                error_type="openai-image-non-stream", # Specific error type
+                error_log=error_log_msg,
+                error_code=status_code,
+                request_msg={"image_data_truncated": image_data[:1000]} # Log truncated data
+            )
+            # Re-raise the exception so the caller knows about the failure
+            raise e
+        finally:
+            end_time = time.perf_counter()
+            latency_ms = int((end_time - start_time) * 1000)
+            logger.info(f"Normal image completion for model {model} took {latency_ms} ms. Success: {is_success}")
+            await add_request_log(
+                model_name=model,
+                api_key=api_key,
+                is_success=is_success,
+                status_code=status_code,
+                latency_ms=latency_ms,
+                request_time=request_datetime
+            )

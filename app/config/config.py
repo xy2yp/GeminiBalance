@@ -10,17 +10,10 @@ from pydantic_settings import BaseSettings
 from sqlalchemy import insert, update, select
 
 from app.core.constants import API_VERSION, DEFAULT_CREATE_IMAGE_MODEL, DEFAULT_FILTER_MODELS, DEFAULT_MODEL, DEFAULT_STREAM_CHUNK_SIZE, DEFAULT_STREAM_LONG_TEXT_THRESHOLD, DEFAULT_STREAM_MAX_DELAY, DEFAULT_STREAM_MIN_DELAY, DEFAULT_STREAM_SHORT_TEXT_THRESHOLD, DEFAULT_TIMEOUT, MAX_RETRIES
-from app.log.logger import get_config_logger
-# 延迟导入以避免循环依赖，仅在 sync_initial_settings 中使用
-# from app.database.connection import database
-# from app.database.models import Settings as SettingsModel
-# from app.database.services import get_all_settings # get_all_settings 可能不适合启动时调用，直接查询
-
-logger = get_config_logger()
+from app.log.logger import Logger
 
 
 class Settings(BaseSettings):
-    """应用程序配置"""
     # 数据库配置
     MYSQL_HOST: str
     MYSQL_PORT: int
@@ -45,6 +38,8 @@ class Settings(BaseSettings):
     TOOLS_CODE_EXECUTION_ENABLED: bool = False
     SHOW_SEARCH_LINK: bool = True
     SHOW_THINKING_PROCESS: bool = True
+    THINKING_MODELS: List[str] = [] # 新增：用于思考过程的模型列表
+    THINKING_BUDGET_MAP: Dict[str, float] = {} # 新增：模型对应的预算映射
     
     # 图像生成相关配置
     PAID_KEY: str = ""
@@ -66,6 +61,13 @@ class Settings(BaseSettings):
     # 调度器配置
     CHECK_INTERVAL_HOURS: int = 1 # 默认检查间隔为1小时
     TIMEZONE: str = "Asia/Shanghai" # 默认时区
+    
+    # github 
+    GITHUB_REPO_OWNER: str = "snailyp"
+    GITHUB_REPO_NAME: str = "gemini-balance"
+
+    # 日志配置
+    LOG_LEVEL: str = "INFO" # 默认日志级别
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -78,26 +80,57 @@ settings = Settings()
 
 def _parse_db_value(key: str, db_value: str, target_type: Type) -> Any:
     """尝试将数据库字符串值解析为目标 Python 类型"""
+    from app.log.logger import get_config_logger # 函数内导入
+    logger = get_config_logger() # 函数内初始化
     try:
+        # 处理 List[str]
         if target_type == List[str]:
-            # 尝试解析 JSON 列表，如果失败则按逗号分割
             try:
                 parsed = json.loads(db_value)
                 if isinstance(parsed, list):
                     return [str(item) for item in parsed]
             except json.JSONDecodeError:
-                # 回退到逗号分割，去除空格
                 return [item.strip() for item in db_value.split(',') if item.strip()]
-            # 如果解析后不是列表或解析失败，返回空列表或进行其他处理
             logger.warning(f"Could not parse '{db_value}' as List[str] for key '{key}', falling back to comma split or empty list.")
-            return [item.strip() for item in db_value.split(',') if item.strip()] # Fallback
+            return [item.strip() for item in db_value.split(',') if item.strip()]
+        # 处理 Dict[str, float]
+        elif target_type == Dict[str, float]:
+            parsed_dict = {}
+            try:
+                # First attempt: standard JSON parsing
+                parsed = json.loads(db_value)
+                if isinstance(parsed, dict):
+                    parsed_dict = {str(k): float(v) for k, v in parsed.items()}
+                else:
+                     logger.warning(f"Parsed DB value for key '{key}' is not a dictionary type. Value: {db_value}")
+            except (json.JSONDecodeError, ValueError, TypeError) as e1:
+                # Second attempt: try replacing single quotes if JSONDecodeError occurred
+                if isinstance(e1, json.JSONDecodeError) and "'" in db_value:
+                    logger.warning(f"Failed initial JSON parse for key '{key}'. Attempting to replace single quotes. Error: {e1}")
+                    try:
+                        corrected_db_value = db_value.replace("'", '"')
+                        parsed = json.loads(corrected_db_value)
+                        if isinstance(parsed, dict):
+                             parsed_dict = {str(k): float(v) for k, v in parsed.items()}
+                        else:
+                            logger.warning(f"Parsed DB value (after quote replacement) for key '{key}' is not a dictionary type. Value: {corrected_db_value}")
+                    except (json.JSONDecodeError, ValueError, TypeError) as e2:
+                         logger.error(f"Could not parse '{db_value}' as Dict[str, float] for key '{key}' even after replacing quotes: {e2}. Returning empty dict.")
+                else:
+                    # Log other errors (ValueError, TypeError) or JSON errors without single quotes
+                    logger.error(f"Could not parse '{db_value}' as Dict[str, float] for key '{key}': {e1}. Returning empty dict.")
+            return parsed_dict # Return the parsed dict or an empty one if all attempts fail
+        # 处理 bool
         elif target_type == bool:
             return db_value.lower() in ('true', '1', 'yes', 'on')
+        # 处理 int
         elif target_type == int:
             return int(db_value)
+        # 处理 float
         elif target_type == float:
             return float(db_value)
-        else: # 默认为 str 或其他 pydantic 能处理的类型
+        # 默认为 str 或其他 pydantic 能直接处理的类型
+        else:
             return db_value
     except (ValueError, TypeError, json.JSONDecodeError) as e:
         logger.warning(f"Failed to parse db_value '{db_value}' for key '{key}' as type {target_type}: {e}. Using original string value.")
@@ -110,6 +143,8 @@ async def sync_initial_settings():
     2. 将数据库设置合并到内存 settings (数据库优先)。
     3. 将最终的内存 settings 同步回数据库。
     """
+    from app.log.logger import get_config_logger # 函数内导入
+    logger = get_config_logger() # 函数内初始化
     # 延迟导入以避免循环依赖和确保数据库连接已初始化
     from app.database.connection import database
     from app.database.models import Settings as SettingsModel
@@ -153,20 +188,18 @@ async def sync_initial_settings():
                         # 比较解析后的值和内存中的值
                         # 注意：对于列表等复杂类型，直接比较可能不够健壮，但这里简化处理
                         if parsed_db_value != memory_value:
-                             # 检查类型是否匹配，以防解析函数返回了不兼容的类型
-                            # 优先处理 List[str] 类型，避免直接对泛型使用 isinstance
-                            if target_type == List[str]:
-                                if isinstance(parsed_db_value, list):
-                                    # 可以选择性地添加对列表元素的检查，但这里保持简化
-                                    setattr(settings, key, parsed_db_value)
-                                    logger.info(f"Updated setting '{key}' in memory from database value (List[str]).")
-                                    updated_in_memory = True
-                                else:
-                                     logger.warning(f"Parsed DB value type mismatch for key '{key}'. Expected List[str], got {type(parsed_db_value)}. Skipping update.")
-                            # 对于其他非泛型类型，使用常规的 isinstance 检查
-                            elif isinstance(parsed_db_value, target_type):
+                            # 检查类型是否匹配，以防解析函数返回了不兼容的类型
+                            type_match = False
+                            if target_type == List[str] and isinstance(parsed_db_value, list):
+                                type_match = True
+                            elif target_type == Dict[str, float] and isinstance(parsed_db_value, dict):
+                                type_match = True
+                            elif target_type not in (List[str], Dict[str, float]) and isinstance(parsed_db_value, target_type):
+                                type_match = True
+
+                            if type_match:
                                 setattr(settings, key, parsed_db_value)
-                                logger.info(f"Updated setting '{key}' in memory from database value.")
+                                logger.info(f"Updated setting '{key}' in memory from database value ({target_type}).")
                                 updated_in_memory = True
                             else:
                                 logger.warning(f"Parsed DB value type mismatch for key '{key}'. Expected {target_type}, got {type(parsed_db_value)}. Skipping update.")
@@ -197,10 +230,12 @@ async def sync_initial_settings():
 
         for key, value in final_memory_settings.items():
             # 序列化值为字符串或 JSON 字符串
-            if isinstance(value, list):
-                db_value = json.dumps(value)
+            if isinstance(value, (list, dict)): # 处理列表和字典
+                db_value = json.dumps(value, ensure_ascii=False) # 使用 ensure_ascii=False 以支持非 ASCII 字符
             elif isinstance(value, bool):
                 db_value = str(value).lower()
+            elif value is None: # 处理 None 值
+                db_value = "" # 或者根据需要设为 NULL 或其他标记
             else:
                 db_value = str(value)
 
@@ -258,15 +293,15 @@ async def sync_initial_settings():
         else:
             logger.info("No setting changes detected between memory and database during initial sync.")
 
+        # 刷新日志等级
+        Logger.update_log_levels(final_memory_settings.get("LOG_LEVEL"))
+        
     except Exception as e:
         logger.error(f"An unexpected error occurred during initial settings sync: {e}")
     finally:
         if database.is_connected:
              try:
-                 # Don't disconnect if it's managed elsewhere (e.g., FastAPI lifespan)
-                 # await database.disconnect()
-                 # logger.info("Database connection closed after initial sync.")
-                 pass # Assume connection lifecycle is managed by the application lifespan
+                 pass
              except Exception as e:
                  logger.error(f"Error disconnecting database after initial sync: {e}")
 
