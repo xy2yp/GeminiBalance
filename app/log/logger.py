@@ -35,7 +35,7 @@ class ColoredFormatter(logging.Formatter):
 
 # 日志格式
 FORMATTER = ColoredFormatter(
-    "%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
+    "%(asctime)s | %(name)-15s | %(levelname)-8s | [%(filename)-20s:%(lineno)-4d] | %(message)s"
 )
 
 # 日志级别映射

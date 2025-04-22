@@ -199,7 +199,7 @@ async def sync_initial_settings():
 
                             if type_match:
                                 setattr(settings, key, parsed_db_value)
-                                logger.info(f"Updated setting '{key}' in memory from database value ({target_type}).")
+                                logger.debug(f"Updated setting '{key}' in memory from database value ({target_type}).")
                                 updated_in_memory = True
                             else:
                                 logger.warning(f"Parsed DB value type mismatch for key '{key}'. Expected {target_type}, got {type(parsed_db_value)}. Skipping update.")
