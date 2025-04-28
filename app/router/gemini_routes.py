@@ -325,13 +325,12 @@ async def verify_selected_keys(
     if not keys_to_verify:
         return JSONResponse({"success": False, "message": "没有提供需要验证的密钥"}, status_code=400)
 
-    valid_count = 0
-    invalid_count = 0
-    verification_errors = {} # 存储验证过程中的错误
+    successful_keys = []
+    failed_keys = {} # 存储失败的 key 和错误信息
 
     async def _verify_single_key(api_key: str):
         """内部函数，用于验证单个密钥并处理异常"""
-        nonlocal valid_count, invalid_count # 允许修改外部计数器
+        nonlocal successful_keys, failed_keys # 允许修改外部列表和字典
         try:
             # 重用单密钥验证逻辑的核心部分
             gemini_request = GeminiRequest(
@@ -344,7 +343,7 @@ async def verify_selected_keys(
                 api_key
             )
             # 如果上面没有抛出异常，则认为密钥有效
-            valid_count += 1
+            successful_keys.append(api_key)
             return api_key, "valid", None
         except Exception as e:
             error_message = str(e)
@@ -358,7 +357,7 @@ async def verify_selected_keys(
                      # 如果密钥不在计数中（可能刚添加或从未失败），初始化为1
                      key_manager.key_failure_counts[api_key] = 1
                      logger.warning(f"Bulk verification exception for key: {api_key}, initializing failure count to 1")
-            invalid_count += 1
+            failed_keys[api_key] = error_message # 记录失败的 key 和错误信息
             return api_key, "invalid", error_message
 
     # 并发执行所有密钥的验证
@@ -373,28 +372,39 @@ async def verify_selected_keys(
             # 可以选择如何处理这种任务级别的错误，这里我们简单记录
             # 也可以将其计入 invalid_count 或单独记录
         elif result:
-             key, status, error = result
-             if status == "invalid" and error:
-                 verification_errors[key] = error # 记录具体的验证错误信息
+             # result 可能是 (key, status, error) 或 Exception
+             if not isinstance(result, Exception) and result:
+                 key, status, error = result
+                 # 失败信息已在 _verify_single_key 中记录到 failed_keys
+             elif isinstance(result, Exception):
+                 # 记录任务本身的异常，可以关联到一个特定的 key 如果可能的话
+                 # 这里简化处理，只记录日志
+                 logger.error(f"Task execution error during bulk verification: {result}")
 
+    valid_count = len(successful_keys)
+    invalid_count = len(failed_keys)
     logger.info(f"Bulk verification finished. Valid: {valid_count}, Invalid: {invalid_count}")
 
-    # 根据是否有错误决定最终消息和状态
-    if verification_errors or valid_count + invalid_count != len(keys_to_verify): # 检查是否有错误或任务异常
-        error_summary = "; ".join([f"{k}: {v}" for k, v in verification_errors.items()])
-        message = f"批量验证完成，但出现问题。有效: {valid_count}, 无效: {invalid_count}。错误详情: {error_summary or '任务执行异常'}"
+    # 根据是否有失败的 key 决定最终消息和状态
+    if failed_keys:
+        message = f"批量验证完成。成功: {valid_count}, 失败: {invalid_count}。"
+        # 即使有失败也认为是部分成功，返回 200 OK，让前端处理详细结果
         return JSONResponse({
-            "success": False, # 标记为失败，因为有错误
+            "success": True, # 表示请求处理完成，具体结果看内容
             "message": message,
-            "valid_count": valid_count,
-            "invalid_count": invalid_count,
-            "errors": verification_errors
-        }, status_code=207) # 207 Multi-Status 表示部分成功/失败
+            "successful_keys": successful_keys,
+            "failed_keys": failed_keys,
+            "valid_count": valid_count, # 保留计数方便前端快速展示
+            "invalid_count": invalid_count
+        })
     else:
         # 完全成功
+        message = f"批量验证成功完成。所有 {valid_count} 个密钥均有效。"
         return JSONResponse({
             "success": True,
-            "message": f"批量验证成功完成。有效: {valid_count}, 无效: {invalid_count}",
+            "message": message,
+            "successful_keys": successful_keys,
+            "failed_keys": {},
             "valid_count": valid_count,
-            "invalid_count": invalid_count
+            "invalid_count": 0
         })

@@ -48,6 +48,26 @@
         }
     }
     /* Modal styles are in base.html */
+    
+    /* 确保输入框和按钮高度一致 */
+    input[type="text"], input[type="datetime-local"], select, button {
+        height: 36px !important;
+    }
+    
+    /* 日期选择器样式优化 */
+    .date-range-container {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    /* 确保所有输入框在小屏幕上正确显示 */
+    @media (max-width: 640px) {
+        input[type="datetime-local"] {
+            min-width: 0;
+            width: 100%;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -83,32 +103,56 @@
                 <!-- 控制区域 (Refresh button removed, page size moved below) -->
                 <!-- Removed the original controls div -->
                 
-                <!-- 搜索控件 -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
-                    <input type="text" id="keySearch" placeholder="搜索密钥 (部分)" class="px-4 py-3 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50 col-span-1 lg:col-span-1">
-                    <input type="text" id="errorSearch" placeholder="搜索错误类型/日志" class="px-4 py-3 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50 col-span-1 lg:col-span-1">
-                    <div class="flex items-center gap-2 col-span-1 lg:col-span-2">
-                        <input type="datetime-local" id="startDate" class="px-4 py-3 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50 flex-1 text-sm">
-                        <span class="text-gray-700">至</span>
-                        <input type="datetime-local" id="endDate" class="px-4 py-3 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50 flex-1 text-sm">
+                <!-- 搜索与操作控件 -->
+                <div class="grid grid-cols-1 lg:grid-cols-[1fr_auto] items-center gap-4 mb-6"> <!-- 修改为items-center -->
+                    <!-- Left side: Search inputs and date range -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full"> <!-- 修改为3列布局 -->
+                        <input type="text" id="keySearch" placeholder="搜索密钥 (部分)" style="height: 36px;" class="px-3 py-1 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50">
+                        <input type="text" id="errorSearch" placeholder="搜索错误类型/日志" style="height: 36px;" class="px-3 py-1 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50">
+                        <input type="text" id="errorCodeSearch" placeholder="搜索错误码" style="height: 36px;" class="px-3 py-1 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50">
+                        <!-- 日期选择器单独一行 -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 col-span-1 sm:col-span-2 lg:col-span-3 mt-2">
+                            <div class="flex items-center gap-2">
+                                <label class="text-sm text-gray-700 whitespace-nowrap">开始时间:</label>
+                                <input type="datetime-local" id="startDate" style="height: 36px;" class="px-3 py-1 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50 text-sm w-full">
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <label class="text-sm text-gray-700 whitespace-nowrap">结束时间:</label>
+                                <input type="datetime-local" id="endDate" style="height: 36px;" class="px-3 py-1 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50 text-sm w-full">
+                            </div>
+                        </div>
                     </div>
-                    <button id="searchBtn" class="flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-3 rounded-lg font-medium transition-all duration-200 col-span-1">
-                        <i class="fas fa-search"></i> 搜索
-                    </button>
+                    <!-- Right side: Action buttons -->
+                    <div class="flex items-center gap-3 flex-shrink-0"> <!-- 移除上边距 -->
+                        <button id="searchBtn" class="flex items-center justify-center px-4 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-all duration-200 shadow-sm hover:shadow-md whitespace-nowrap" style="height: 36px;">
+                            <i class="fas fa-search mr-1.5"></i>搜索
+                        </button>
+                        <button id="copySelectedKeysBtn" class="flex items-center justify-center px-4 py-1.5 bg-success-600 hover:bg-success-700 text-white rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md whitespace-nowrap" style="height: 36px;" disabled>
+                            <i class="far fa-copy mr-1.5"></i>复制
+                        </button>
+                        <button id="deleteSelectedBtn" class="flex items-center justify-center px-4 py-1.5 bg-danger-600 hover:bg-danger-700 text-white rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md whitespace-nowrap" style="height: 36px;" disabled>
+                            <i class="fas fa-trash-alt mr-1.5"></i>删除
+                        </button>
+                    </div>
                 </div>
-                
+
                 <!-- 表格容器 - Enhanced Styling -->
                 <div class="overflow-x-auto rounded-lg border border-gray-200 mb-6 bg-white"> <!-- Removed shadow, added border -->
                     <table class="styled-table w-full min-w-full text-sm"> <!-- Added text-sm -->
                         <thead>
                             <tr class="bg-primary-50 text-left text-primary-800"> <!-- Changed header background and text color -->
-                                <th class="px-5 py-3 font-semibold rounded-tl-lg">ID</th> <!-- Increased padding, adjusted rounding -->
+                                <th class="px-3 py-3 font-semibold rounded-tl-lg w-12 text-center"> <!-- Adjusted padding and width -->
+                                    <input type="checkbox" id="selectAllCheckbox" class="form-checkbox h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500">
+                                </th>
+                                <th class="px-5 py-3 font-semibold cursor-pointer" id="sortById">
+                                    ID <i class="fas fa-sort ml-1 text-gray-400"></i>
+                                </th>
                                 <th class="px-5 py-3 font-semibold">Gemini密钥</th>
                                 <th class="px-5 py-3 font-semibold">错误类型</th>
                                 <th class="px-5 py-3 font-semibold">错误码</th>
                                 <th class="px-5 py-3 font-semibold">模型名称</th>
                                 <th class="px-5 py-3 font-semibold">请求时间</th>
-                                <th class="px-5 py-3 font-semibold rounded-tr-lg">操作</th> <!-- Adjusted rounding -->
+                                <th class="px-5 py-3 font-semibold rounded-tr-lg text-center">操作</th> <!-- Adjusted rounding and centered -->
                             </tr>
                         </thead>
                         <tbody id="errorLogsTable" class="divide-y divide-gray-200">
@@ -186,17 +230,23 @@
                 </div>
                 
                 <div class="space-y-4 max-h-[60vh] overflow-y-auto p-1">
-                    <div class="bg-gray-50 p-4 rounded-lg">
+                    <div class="bg-gray-50 p-4 rounded-lg relative group"> <!-- Added relative and group -->
                         <h6 class="text-sm font-semibold text-gray-600 mb-1">Gemini密钥:</h6>
                         <pre id="modalGeminiKey" class="font-mono text-sm bg-gray-100 p-3 rounded overflow-x-auto"></pre>
-                    </div>
-                    
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <h6 class="text-sm font-semibold text-gray-600 mb-1">错误类型:</h6>
-                        <p id="modalErrorType" class="text-danger-600 font-medium"></p>
+                        <button class="copy-btn absolute top-2 right-2 bg-gray-200 hover:bg-gray-300 text-gray-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity" data-target="modalGeminiKey" title="复制密钥">
+                            <i class="far fa-copy"></i>
+                        </button>
                     </div>
                     
                     <div class="bg-gray-50 p-4 rounded-lg relative group"> <!-- Added relative and group -->
+                        <h6 class="text-sm font-semibold text-gray-600 mb-1">错误类型:</h6>
+                        <p id="modalErrorType" class="text-danger-600 font-medium pr-8"></p> <!-- Added padding right for button -->
+                        <button class="copy-btn absolute top-2 right-2 bg-gray-200 hover:bg-gray-300 text-gray-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity" data-target="modalErrorType" title="复制错误类型">
+                            <i class="far fa-copy"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="bg-gray-50 p-4 rounded-lg relative group">
                         <h6 class="text-sm font-semibold text-gray-600 mb-1">错误日志:</h6>
                         <pre id="modalErrorLog" class="font-mono text-sm bg-gray-100 p-3 rounded overflow-x-auto whitespace-pre-wrap"></pre>
                         <button class="copy-btn absolute top-2 right-2 bg-gray-200 hover:bg-gray-300 text-gray-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity" data-target="modalErrorLog" title="复制错误日志">
@@ -204,7 +254,7 @@
                         </button>
                     </div>
                     
-                    <div class="bg-gray-50 p-4 rounded-lg relative group"> <!-- Added relative and group -->
+                    <div class="bg-gray-50 p-4 rounded-lg relative group">
                         <h6 class="text-sm font-semibold text-gray-600 mb-1">请求消息:</h6>
                         <pre id="modalRequestMsg" class="font-mono text-sm bg-gray-100 p-3 rounded overflow-x-auto whitespace-pre-wrap"></pre>
                          <button class="copy-btn absolute top-2 right-2 bg-gray-200 hover:bg-gray-300 text-gray-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity" data-target="modalRequestMsg" title="复制请求消息">
@@ -212,14 +262,20 @@
                         </button>
                     </div>
                     
-                    <div class="bg-gray-50 p-4 rounded-lg">
+                    <div class="bg-gray-50 p-4 rounded-lg relative group"> <!-- Added relative and group -->
                         <h6 class="text-sm font-semibold text-gray-600 mb-1">模型名称:</h6>
-                        <p id="modalModelName" class="font-medium"></p>
+                        <p id="modalModelName" class="font-medium pr-8"></p> <!-- Added padding right for button -->
+                         <button class="copy-btn absolute top-2 right-2 bg-gray-200 hover:bg-gray-300 text-gray-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity" data-target="modalModelName" title="复制模型名称">
+                            <i class="far fa-copy"></i>
+                        </button>
                     </div>
                     
-                    <div class="bg-gray-50 p-4 rounded-lg">
+                    <div class="bg-gray-50 p-4 rounded-lg relative group"> <!-- Added relative and group -->
                         <h6 class="text-sm font-semibold text-gray-600 mb-1">请求时间:</h6>
-                        <p id="modalRequestTime" class="font-medium"></p>
+                        <p id="modalRequestTime" class="font-medium pr-8"></p> <!-- Added padding right for button -->
+                         <button class="copy-btn absolute top-2 right-2 bg-gray-200 hover:bg-gray-300 text-gray-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity" data-target="modalRequestTime" title="复制请求时间">
+                            <i class="far fa-copy"></i>
+                        </button>
                     </div>
                 </div>
                 
@@ -230,6 +286,22 @@
         </div>
     </div>
     
+<!-- 删除确认模态框 -->
+    <div id="deleteConfirmModal" class="modal">
+        <div class="w-full max-w-md mx-auto bg-white rounded-xl shadow-xl overflow-hidden animate-fade-in">
+            <div class="p-6">
+                <div class="flex justify-between items-center border-b border-gray-200 pb-3 mb-4">
+                    <h2 class="text-lg font-semibold text-gray-800">确认删除</h2>
+                    <button id="closeDeleteConfirmModalBtn" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+                </div>
+                <p id="deleteConfirmMessage" class="text-gray-700 mb-6">你确定要删除选中的项目吗？此操作不可恢复！</p>
+                <div class="flex justify-end gap-3">
+                    <button id="cancelDeleteBtn" type="button" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-5 py-2 rounded-lg font-medium transition">取消</button>
+                    <button id="confirmDeleteBtn" type="button" class="bg-danger-600 hover:bg-danger-700 text-white px-5 py-2 rounded-lg font-medium transition">确认删除</button>
+                </div>
+            </div>
+        </div>
+    </div>
 {% endblock %}
 
 {% block body_scripts %}

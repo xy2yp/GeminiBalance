@@ -11,6 +11,7 @@ from app.exception.exceptions import setup_exception_handlers
 from app.router.routes import setup_routers
 from app.service.key.key_manager import get_key_manager_instance
 from app.database.connection import connect_to_db, disconnect_from_db
+from app.utils.helpers import get_current_version # Import from helpers
 from app.database.initialization import initialize_database
 from app.scheduler.key_checker import start_scheduler, stop_scheduler
 from app.service.update.update_service import check_for_updates
@@ -20,28 +21,11 @@ logger = get_application_logger()
 # Define project paths using pathlib
 # Assuming this file is at app/core/application.py
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-VERSION_FILE_PATH = PROJECT_ROOT / "VERSION"
+# VERSION_FILE_PATH = PROJECT_ROOT / "VERSION" # Removed: Defined in helpers.py
 STATIC_DIR = PROJECT_ROOT / "app" / "static"
 TEMPLATES_DIR = PROJECT_ROOT / "app" / "templates"
 
-
-def _get_current_version(default_version: str = "0.0.0") -> str:
-    """Reads the current version from the VERSION file."""
-    version_file = VERSION_FILE_PATH # Use Path object
-    try:
-        # Use Path object's open method
-        with version_file.open('r', encoding='utf-8') as f:
-            version = f.read().strip()
-        if not version:
-            logger.warning(f"VERSION file ('{version_file}') is empty. Using default version '{default_version}'.")
-            return default_version
-        return version
-    except FileNotFoundError:
-        logger.warning(f"VERSION file not found at '{version_file}'. Using default version '{default_version}'.")
-        return default_version
-    except IOError as e:
-        logger.error(f"Error reading VERSION file ('{version_file}'): {e}. Using default version '{default_version}'.")
-        return default_version
+# Removed _get_current_version function definition, moved to helpers.py
 
 # 初始化模板引擎，并添加全局变量
 templates = Jinja2Templates(directory="app/templates")
@@ -70,7 +54,6 @@ async def _setup_database_and_config(app_settings):
 async def _shutdown_database():
     """Disconnects from the database."""
     await disconnect_from_db()
-    logger.info("Disconnected from database.")
 
 def _start_scheduler():
     """Starts the background scheduler."""
@@ -83,12 +66,11 @@ def _start_scheduler():
 def _stop_scheduler():
     """Stops the background scheduler."""
     stop_scheduler()
-    logger.info("Scheduler stopped.")
 
 async def _perform_update_check(app: FastAPI):
     """Checks for updates and stores the info in app.state."""
     update_available, latest_version, error_message = await check_for_updates()
-    current_version = _get_current_version() # Read from VERSION file
+    current_version = get_current_version() # Use imported function
     update_info = {
         "update_available": update_available,
         "latest_version": latest_version,
@@ -119,7 +101,7 @@ async def lifespan(app: FastAPI):
         await _setup_database_and_config(settings) # Pass settings object
 
         # Perform update check after core components are ready
-        await _perform_update_check(app)
+        # await _perform_update_check(app) # Removed: Version check moved to frontend API call
 
         # Start the scheduler
         _start_scheduler()
@@ -148,7 +130,7 @@ def create_app() -> FastAPI:
 
     # 创建FastAPI应用
     # Read version from file for consistency
-    current_version = _get_current_version()
+    current_version = get_current_version() # Use imported function
     app = FastAPI(
         title="Gemini Balance API",
         description="Gemini API代理服务，支持负载均衡和密钥管理",

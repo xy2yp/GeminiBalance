@@ -1,19 +1,19 @@
 import logging
+import platform
 import sys
 from typing import Dict, Optional
-import platform
 
 # ANSI转义序列颜色代码
 COLORS = {
-    'DEBUG': '\033[34m',  # 蓝色
-    'INFO': '\033[32m',  # 绿色
-    'WARNING': '\033[33m',  # 黄色
-    'ERROR': '\033[31m',  # 红色
-    'CRITICAL': '\033[1;31m'  # 红色加粗
+    "DEBUG": "\033[34m",  # 蓝色
+    "INFO": "\033[32m",  # 绿色
+    "WARNING": "\033[33m",  # 黄色
+    "ERROR": "\033[31m",  # 红色
+    "CRITICAL": "\033[1;31m",  # 红色加粗
 }
 
 # Windows系统启用ANSI支持
-if platform.system() == 'Windows':
+if platform.system() == "Windows":
     import ctypes
 
     kernel32 = ctypes.windll.kernel32
@@ -27,15 +27,17 @@ class ColoredFormatter(logging.Formatter):
 
     def format(self, record):
         # 获取对应级别的颜色代码
-        color = COLORS.get(record.levelname, '')
+        color = COLORS.get(record.levelname, "")
         # 添加颜色代码和重置代码
         record.levelname = f"{color}{record.levelname}\033[0m"
+        # 创建包含文件名和行号的固定宽度字符串
+        record.fileloc = f"[{record.filename}:{record.lineno}]"
         return super().format(record)
 
 
-# 日志格式
+# 日志格式 - 使用 fileloc 并设置固定宽度 (例如 30)
 FORMATTER = ColoredFormatter(
-    "%(asctime)s | %(name)-15s | %(levelname)-8s | [%(filename)-20s:%(lineno)-4d] | %(message)s"
+    "%(asctime)s | %(levelname)-17s | %(fileloc)-30s | %(message)s"
 )
 
 # 日志级别映射
@@ -55,9 +57,7 @@ class Logger:
     _loggers: Dict[str, logging.Logger] = {}
 
     @staticmethod
-    def setup_logger(
-            name: str
-    ) -> logging.Logger:
+    def setup_logger(name: str) -> logging.Logger:
         """
         设置并获取logger
         :param name: logger名称
@@ -65,6 +65,7 @@ class Logger:
         """
         # 导入 settings 对象
         from app.config.config import settings
+
         # 从全局配置获取日志级别
         log_level_str = settings.LOG_LEVEL.lower()
         level = LOG_LEVELS.get(log_level_str, logging.INFO)
@@ -96,7 +97,6 @@ class Logger:
         :return: logger实例或None
         """
         return Logger._loggers.get(name)
-
 
     @staticmethod
     def update_log_levels(log_level: str):

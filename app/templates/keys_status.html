@@ -6,12 +6,15 @@
 <style>
     /* keys_status.html specific styles */
     .key-content {
-        transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out;
+        transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out, padding 0.3s ease-in-out; /* Added padding transition */
+        overflow: hidden; /* Keep hidden initially and during collapse */
     }
     .key-content.collapsed {
-        max-height: 0;
-        overflow: hidden;
+        max-height: 0 !important; /* Use important to override inline style during transition */
         opacity: 0;
+        padding-top: 0 !important; /* Collapse padding */
+        padding-bottom: 0 !important; /* Collapse padding */
+        /* overflow: hidden; */ /* Already set above */
     }
     .toggle-icon {
         transition: transform 0.3s ease;
@@ -30,13 +33,13 @@
         position: relative;
         z-index: 10;
     }
-    
+
     @media (min-width: 768px) {
         .stats-dashboard {
             grid-template-columns: 1fr 1fr;
         }
     }
-    
+
     /* 统计卡片样式 */
     .stats-card {
         background-color: rgba(255, 255, 255, 0.8);
@@ -48,11 +51,11 @@
         overflow: hidden;
         transition: all 0.3s ease-in-out;
     }
-    
+
     .stats-card:hover {
         box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
     }
-    
+
     .stats-card-header {
         background-color: rgba(255, 255, 255, 0.3);
         padding: 0.75rem 1rem;
@@ -60,8 +63,10 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
+        flex-wrap: wrap; /* Allow wrapping for smaller screens */
+        gap: 0.5rem; /* Add gap between items */
     }
-    
+
     .stats-card-title {
         display: flex;
         align-items: center;
@@ -69,19 +74,19 @@
         font-weight: 500;
         color: #374151;
     }
-    
+
     .stats-card-title i {
         margin-right: 0.5rem;
         color: #4F46E5;
     }
-    
+
     .stats-grid {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         gap: 0.5rem;
         padding: 0.75rem;
     }
-    
+
     /* 统计项样式 */
     .stat-item {
         padding: 0.75rem;
@@ -95,7 +100,7 @@
         position: relative;
         overflow: hidden;
     }
-    
+
     .stat-item::before {
         content: '';
         position: absolute;
@@ -105,15 +110,15 @@
         z-index: 0;
         transition: opacity 0.3s ease-in-out;
     }
-    
+
     .stat-item:hover::before {
         opacity: 0.1;
     }
-    
+
     .stat-item:hover {
         transform: scale(1.05);
     }
-    
+
     .stat-value {
         font-size: 1.5rem;
         font-weight: 700;
@@ -121,7 +126,7 @@
         position: relative;
         color: #1F2937;
     }
-    
+
     .stat-label {
         font-size: 0.75rem;
         font-weight: 500;
@@ -132,7 +137,7 @@
         position: relative;
         color: #6B7280;
     }
-    
+
     .stat-icon {
         position: absolute;
         right: 0.5rem;
@@ -142,63 +147,30 @@
         transform: rotate(12deg);
         transition: all 0.3s ease-in-out;
     }
-    
+
     .stat-item:hover .stat-icon {
         opacity: 0.2;
         transform: scale(1.1) rotate(0deg);
     }
-    
+
     /* 统计类型样式 */
-    .stat-primary {
-        color: #4F46E5;
-        background-color: rgba(238, 242, 255, 0.5);
-    }
-    
-    .stat-success {
-        color: #10B981;
-        background-color: rgba(236, 253, 245, 0.5);
-    }
-    
-    .stat-danger {
-        color: #EF4444;
-        background-color: rgba(254, 242, 242, 0.5);
-    }
-    
-    .stat-warning {
-        color: #F59E0B;
-        background-color: rgba(255, 251, 235, 0.5);
-    }
-    
-    .stat-info {
-        color: #3B82F6;
-        background-color: rgba(239, 246, 255, 0.5);
-    }
-    
+    .stat-primary { color: #4F46E5; background-color: rgba(238, 242, 255, 0.5); }
+    .stat-success { color: #10B981; background-color: rgba(236, 253, 245, 0.5); }
+    .stat-danger { color: #EF4444; background-color: rgba(254, 242, 242, 0.5); }
+    .stat-warning { color: #F59E0B; background-color: rgba(255, 251, 235, 0.5); }
+    .stat-info { color: #3B82F6; background-color: rgba(239, 246, 255, 0.5); }
+
     /* 响应式调整 */
     @media (max-width: 640px) {
-        .stats-dashboard {
-            gap: 1rem;
-        }
-        
-        .stats-grid {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 0.5rem;
-            padding: 0.5rem;
-        }
-        
-        .stat-item {
-            padding: 0.5rem;
-        }
-        
-        .stat-value {
-            font-size: 1.25rem;
-        }
-        
-        .stat-label {
-            font-size: 0.625rem;
-        }
+        .stats-dashboard { gap: 1rem; }
+        .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; padding: 0.5rem; }
+        .stat-item { padding: 0.5rem; }
+        .stat-value { font-size: 1.25rem; }
+        .stat-label { font-size: 0.625rem; }
+        .stats-card-header { padding: 0.5rem 0.75rem; } /* Adjust header padding */
+        .key-content ul { grid-template-columns: 1fr; } /* Stack keys vertically on small screens */
     }
-    /* Tailwind Toggle Switch Helper CSS from config_editor.html */
+    /* Tailwind Toggle Switch Helper CSS */
     .toggle-checkbox:checked {
         @apply: right-0 border-primary-600;
         right: 0;
@@ -208,6 +180,34 @@
         @apply: bg-primary-600;
         background-color: #4F46E5;
     }
+
+    /* Pagination Controls */
+    #validPaginationControls, #invalidPaginationControls {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-top: 1rem; /* mt-4 */
+        gap: 0.5rem; /* space-x-2 */
+    }
+
+    /* Ensure list items are flex for alignment */
+     #validKeys li, #invalidKeys li {
+        display: flex;
+        align-items: flex-start; /* Align checkbox with top of content */
+        gap: 0.75rem; /* gap-3 */
+    }
+    /* Ensure grid layout for key lists */
+    #validKeys, #invalidKeys {
+        display: grid;
+        grid-template-columns: 1fr; /* Default single column */
+        gap: 0.75rem; /* gap-3 */
+    }
+    @media (min-width: 768px) { /* md breakpoint */
+        #validKeys, #invalidKeys {
+            grid-template-columns: repeat(2, 1fr); /* Two columns on medium screens and up */
+        }
+    }
+
 
 </style>
 {% endblock %}
@@ -282,7 +282,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- API调用统计卡片 -->
                 <div class="stats-card">
                     <div class="stats-card-header">
@@ -311,161 +311,217 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- 有效密钥区域 -->
             <div class="stats-card mb-6 animate-fade-in" style="animation-delay: 0.2s">
                 <div class="stats-card-header cursor-pointer" onclick="toggleSection(this, 'validKeys')">
-                    <div class="flex items-center gap-3">
+                    <!-- Left side: Title and Toggle Icon -->
+                    <div class="flex items-center gap-3 flex-shrink-0"> <!-- Prevent shrinking -->
                         <i class="fas fa-chevron-down toggle-icon text-primary-600"></i>
                         <i class="fas fa-check-circle text-success-500"></i>
-                        <h2 class="text-lg font-semibold">有效密钥列表 ({{ valid_key_count }})</h2>
-                        <div class="flex items-center gap-2 ml-4">
-                            <label for="failCountThreshold" class="text-sm text-gray-600 select-none">失败次数≥</label>
+                        <h2 class="text-lg font-semibold whitespace-nowrap">有效密钥列表 ({{ valid_key_count }})</h2>
+                    </div>
+                    <!-- Middle: Filters and Search (Allow wrapping) -->
+                    <div class="flex items-center gap-x-4 gap-y-2 flex-grow flex-wrap justify-start md:justify-center"> <!-- Allow wrapping, center on medium+ -->
+                        <!-- 失败次数筛选 -->
+                        <div class="flex items-center gap-1">
+                            <label for="failCountThreshold" class="text-sm text-gray-600 select-none whitespace-nowrap">失败次数≥</label>
                             <input type="number" id="failCountThreshold" value="0" min="0" class="form-input h-7 w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500" onclick="event.stopPropagation();">
                         </div>
+                        <!-- 密钥搜索 -->
+                        <div class="flex items-center gap-1">
+                            <label for="keySearchInput" class="text-sm text-gray-600 select-none whitespace-nowrap"><i class="fas fa-search mr-1"></i>搜索</label>
+                            <input type="search" id="keySearchInput" placeholder="输入密钥..." class="form-input h-7 w-32 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500" onclick="event.stopPropagation();">
+                        </div>
+                         <!-- 每页显示数量 -->
+                        <div class="flex items-center gap-1">
+                            <label for="itemsPerPageSelect" class="text-sm text-gray-600 select-none whitespace-nowrap">每页</label>
+                            <select id="itemsPerPageSelect" class="form-select h-7 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500 bg-white" onclick="event.stopPropagation();">
+                                <option value="10">10</option>
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                            <span class="text-sm text-gray-600 select-none">项</span>
+                        </div>
                     </div>
-                    <div class="flex gap-2">
-                         <button class="flex items-center gap-2 bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="event.stopPropagation(); showVerifyModal('valid', event)"> <!-- 新增批量验证按钮 -->
-                            <i class="fas fa-check-double"></i>
-                            批量验证
-                        </button>
-                        <button class="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="event.stopPropagation(); resetAllKeysFailCount('valid', event)" data-reset-type="valid">
-                            <i class="fas fa-redo-alt"></i>
-                            批量重置
-                        </button>
-                        <button class="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="event.stopPropagation(); copyKeys('valid')">
-                            <i class="fas fa-copy"></i>
-                            批量复制
-                        </button>
+                    <!-- Right side: Select All -->
+                    <div class="flex items-center gap-1 flex-shrink-0" onclick="event.stopPropagation();"> <!-- Prevent shrinking -->
+                        <input type="checkbox" id="selectAllValid" class="form-checkbox h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" onchange="toggleSelectAll('valid', this.checked)">
+                        <label for="selectAllValid" class="text-sm text-gray-600 select-none whitespace-nowrap">全选</label>
                     </div>
                 </div>
-                
+
+                <!-- 批量操作按钮组 (仅在选中时显示) -->
+                <div id="validBatchActions" class="p-3 bg-gray-50 border-t border-gray-200 hidden flex items-center flex-wrap gap-3"> <!-- Added flex-wrap -->
+                    <span class="text-sm font-medium text-gray-700 whitespace-nowrap">已选择 <span id="validSelectedCount">0</span> 项</span>
+                    <button class="flex items-center gap-2 bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" onclick="event.stopPropagation(); showVerifyModal('valid', event)" disabled>
+                        <i class="fas fa-check-double"></i> 批量验证
+                    </button>
+                    <button class="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" onclick="event.stopPropagation(); resetAllKeysFailCount('valid', event)" data-reset-type="valid" disabled>
+                        <i class="fas fa-redo-alt"></i> 批量重置
+                    </button>
+                    <button class="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" onclick="event.stopPropagation(); copySelectedKeys('valid')" disabled>
+                        <i class="fas fa-copy"></i> 批量复制
+                    </button>
+                </div>
+
                 <div class="key-content p-4 bg-white bg-opacity-40">
+                    <!-- Key list will be populated by JS -->
                     <ul id="validKeys" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {# Initial keys rendered by server-side for non-JS users or initial load #}
+                    {# JS will replace this content with paginated/filtered results #}
                     {% if valid_keys %}
                         {% for key, fail_count in valid_keys.items() %}
-                        <li class="bg-white rounded-lg p-3 shadow-sm hover:shadow-md transition-all duration-300 border border-gray-100 hover:border-success-300 transform hover:-translate-y-1" data-fail-count="{{ fail_count }}">
-                            <div class="flex flex-col justify-between h-full gap-3">
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success-50 text-success-600">
-                                        <i class="fas fa-check mr-1"></i> 有效
-                                    </span>
-                                    <div class="flex items-center gap-1">
-                                        <span class="key-text font-mono text-gray-700" data-full-key="{{ key }}">{{ key[:4] + '...' + key[-4:] }}</span>
-                                        <button class="text-gray-500 hover:text-primary-600 transition-colors" onclick="toggleKeyVisibility(this)">
-                                            <i class="fas fa-eye"></i>
+                        <li class="bg-white rounded-lg p-3 shadow-sm hover:shadow-md transition-all duration-300 border border-gray-100 hover:border-success-300 transform hover:-translate-y-1" data-fail-count="{{ fail_count }}" data-key="{{ key }}">
+                            <!-- Checkbox -->
+                            <input type="checkbox" class="form-checkbox h-5 w-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500 mt-1 key-checkbox" data-key-type="valid" value="{{ key }}">
+                            <!-- Key Info -->
+                            <div class="flex-grow">
+                                <div class="flex flex-col justify-between h-full gap-3">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success-50 text-success-600">
+                                            <i class="fas fa-check mr-1"></i> 有效
+                                        </span>
+                                        <div class="flex items-center gap-1">
+                                            <span class="key-text font-mono text-gray-700" data-full-key="{{ key }}">{{ key[:4] + '...' + key[-4:] }}</span>
+                                            <button class="text-gray-500 hover:text-primary-600 transition-colors" onclick="toggleKeyVisibility(this)" title="显示/隐藏密钥">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-600">
+                                            <i class="fas fa-exclamation-triangle mr-1"></i>
+                                            失败: {{ fail_count }}
+                                        </span>
+                                    </div>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <button class="flex items-center gap-1 bg-success-500 hover:bg-success-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="verifyKey('{{ key }}', this)">
+                                            <i class="fas fa-check-circle"></i>
+                                            验证
+                                        </button>
+                                        <button class="flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="resetKeyFailCount('{{ key }}', this)">
+                                            <i class="fas fa-redo-alt"></i>
+                                            重置
+                                        </button>
+                                        <button class="flex items-center gap-1 bg-gray-500 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="copyKey('{{ key }}')">
+                                            <i class="fas fa-copy"></i>
+                                            复制
+                                        </button>
+                                        <button class="flex items-center gap-1 bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="showKeyUsageDetails('{{ key }}')">
+                                            <i class="fas fa-chart-pie"></i>
+                                            详情
                                         </button>
                                     </div>
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-600">
-                                        <i class="fas fa-exclamation-triangle mr-1"></i>
-                                        失败: {{ fail_count }}
-                                    </span>
-                                </div>
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <button class="flex items-center gap-1 bg-success-500 hover:bg-success-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="verifyKey('{{ key }}', this)">
-                                        <i class="fas fa-check-circle"></i>
-                                        验证
-                                    </button>
-                                    <button class="flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="resetKeyFailCount('{{ key }}', this)">
-                                        <i class="fas fa-redo-alt"></i>
-                                        重置
-                                    </button>
-                                    <button class="flex items-center gap-1 bg-gray-500 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="copyKey('{{ key }}')">
-                                        <i class="fas fa-copy"></i>
-                                        复制
-                                    </button>
-                                    <button class="flex items-center gap-1 bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="showKeyUsageDetails('{{ key }}')">
-                                        <i class="fas fa-chart-pie"></i>
-                                        详情
-                                    </button>
                                 </div>
                             </div>
                         </li>
-                    {% endfor %}
+                        {% endfor %}
                     {% else %}
-                         <li class="text-center text-gray-500 py-4">暂无有效密钥</li>
+                         <li class="text-center text-gray-500 py-4 col-span-full">暂无有效密钥</li>
                     {% endif %}
                     </ul>
+                    <!-- 有效密钥分页控件容器 -->
+                    <div id="validPaginationControls" class="flex justify-center items-center mt-4 space-x-2">
+                        <!-- Pagination controls will be generated by JS -->
+                    </div>
                 </div>
             </div>
-            
+
             <!-- 无效密钥区域 -->
             <div class="stats-card mb-6 animate-fade-in" style="animation-delay: 0.4s">
                 <div class="stats-card-header cursor-pointer" onclick="toggleSection(this, 'invalidKeys')">
-                    <div class="flex items-center gap-3">
+                     <!-- Left side: Title and Toggle Icon -->
+                    <div class="flex items-center gap-3 flex-shrink-0"> <!-- Prevent shrinking -->
                         <i class="fas fa-chevron-down toggle-icon text-primary-600"></i>
                         <i class="fas fa-times-circle text-danger-500"></i>
-                        <h2 class="text-lg font-semibold">无效密钥列表 ({{ invalid_key_count }})</h2>
+                        <h2 class="text-lg font-semibold whitespace-nowrap">无效密钥列表 ({{ invalid_key_count }})</h2>
                     </div>
-                    <div class="flex gap-2">
-                         <button class="flex items-center gap-2 bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="event.stopPropagation(); showVerifyModal('invalid', event)"> <!-- 新增批量验证按钮 -->
-                            <i class="fas fa-check-double"></i>
-                            批量验证
-                        </button>
-                        <button class="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="event.stopPropagation(); resetAllKeysFailCount('invalid', event)" data-reset-type="invalid">
-                            <i class="fas fa-redo-alt"></i>
-                            批量重置
-                        </button>
-                        <button class="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="event.stopPropagation(); copyKeys('invalid')">
-                            <i class="fas fa-copy"></i>
-                            批量复制
-                        </button>
+                     <!-- Right side: Select All -->
+                    <div class="flex items-center gap-1 ml-auto flex-shrink-0" onclick="event.stopPropagation();"> <!-- Use ml-auto, Prevent shrinking -->
+                        <input type="checkbox" id="selectAllInvalid" class="form-checkbox h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" onchange="toggleSelectAll('invalid', this.checked)">
+                        <label for="selectAllInvalid" class="text-sm text-gray-600 select-none whitespace-nowrap">全选</label>
                     </div>
                 </div>
-                
+
+                 <!-- 批量操作按钮组 (仅在选中时显示) -->
+                <div id="invalidBatchActions" class="p-3 bg-gray-50 border-t border-gray-200 hidden flex items-center flex-wrap gap-3"> <!-- Added flex-wrap -->
+                    <span class="text-sm font-medium text-gray-700 whitespace-nowrap">已选择 <span id="invalidSelectedCount">0</span> 项</span>
+                    <button class="flex items-center gap-2 bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" onclick="event.stopPropagation(); showVerifyModal('invalid', event)" disabled>
+                        <i class="fas fa-check-double"></i> 批量验证
+                    </button>
+                    <button class="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" onclick="event.stopPropagation(); resetAllKeysFailCount('invalid', event)" data-reset-type="invalid" disabled>
+                        <i class="fas fa-redo-alt"></i> 批量重置
+                    </button>
+                    <button class="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" onclick="event.stopPropagation(); copySelectedKeys('invalid')" disabled>
+                        <i class="fas fa-copy"></i> 批量复制
+                    </button>
+                </div>
+
                 <div class="key-content p-4 bg-white bg-opacity-40">
+                     <!-- Key list will be populated by JS -->
                     <ul id="invalidKeys" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                     {# Initial keys rendered by server-side #}
+                     {# JS will replace this content with paginated results #}
                      {% if invalid_keys %}
                         {% for key, fail_count in invalid_keys.items() %}
-                        <li class="bg-white rounded-lg p-3 shadow-sm hover:shadow-md transition-all duration-300 border border-gray-100 hover:border-danger-300 transform hover:-translate-y-1">
-                            <div class="flex flex-col justify-between h-full gap-3">
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-danger-50 text-danger-600">
-                                        <i class="fas fa-times mr-1"></i> 无效
-                                    </span>
-                                    <div class="flex items-center gap-1">
-                                        <span class="key-text font-mono text-gray-700" data-full-key="{{ key }}">{{ key[:4] + '...' + key[-4:] }}</span>
-                                        <button class="text-gray-500 hover:text-primary-600 transition-colors" onclick="toggleKeyVisibility(this)">
-                                            <i class="fas fa-eye"></i>
+                        <li class="bg-white rounded-lg p-3 shadow-sm hover:shadow-md transition-all duration-300 border border-gray-100 hover:border-danger-300 transform hover:-translate-y-1" data-key="{{ key }}">
+                             <!-- Checkbox -->
+                            <input type="checkbox" class="form-checkbox h-5 w-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500 mt-1 key-checkbox" data-key-type="invalid" value="{{ key }}">
+                            <!-- Key Info -->
+                            <div class="flex-grow">
+                                <div class="flex flex-col justify-between h-full gap-3">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-danger-50 text-danger-600">
+                                            <i class="fas fa-times mr-1"></i> 无效
+                                        </span>
+                                        <div class="flex items-center gap-1">
+                                            <span class="key-text font-mono text-gray-700" data-full-key="{{ key }}">{{ key[:4] + '...' + key[-4:] }}</span>
+                                            <button class="text-gray-500 hover:text-primary-600 transition-colors" onclick="toggleKeyVisibility(this)" title="显示/隐藏密钥">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-600">
+                                            <i class="fas fa-exclamation-triangle mr-1"></i>
+                                            失败: {{ fail_count }}
+                                        </span>
+                                    </div>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <button class="flex items-center gap-1 bg-success-500 hover:bg-success-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="verifyKey('{{ key }}', this)">
+                                            <i class="fas fa-check-circle"></i>
+                                            验证
+                                        </button>
+                                        <button class="flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="resetKeyFailCount('{{ key }}', this)">
+                                            <i class="fas fa-redo-alt"></i>
+                                            重置
+                                        </button>
+                                        <button class="flex items-center gap-1 bg-gray-500 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="copyKey('{{ key }}')">
+                                            <i class="fas fa-copy"></i>
+                                            复制
+                                        </button>
+                                         <button class="flex items-center gap-1 bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="showKeyUsageDetails('{{ key }}')">
+                                            <i class="fas fa-chart-pie"></i>
+                                            详情
                                         </button>
                                     </div>
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-600">
-                                        <i class="fas fa-exclamation-triangle mr-1"></i>
-                                        失败: {{ fail_count }}
-                                    </span>
-                                </div>
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <button class="flex items-center gap-1 bg-success-500 hover:bg-success-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="verifyKey('{{ key }}', this)">
-                                        <i class="fas fa-check-circle"></i>
-                                        验证
-                                    </button>
-                                    <button class="flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="resetKeyFailCount('{{ key }}', this)">
-                                        <i class="fas fa-redo-alt"></i>
-                                        重置
-                                    </button>
-                                    <button class="flex items-center gap-1 bg-gray-500 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="copyKey('{{ key }}')">
-                                        <i class="fas fa-copy"></i>
-                                        复制
-                                    </button>
-                                    <button class="flex items-center gap-1 bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200" onclick="showKeyUsageDetails('{{ key }}')">
-                                        <i class="fas fa-chart-pie"></i>
-                                        详情
-                                    </button>
                                 </div>
                             </div>
                         </li>
-                    {% endfor %}
+                        {% endfor %}
                      {% else %}
-                         <li class="text-center text-gray-500 py-4">暂无无效密钥</li>
+                         <li class="text-center text-gray-500 py-4 col-span-full">暂无无效密钥</li>
                      {% endif %}
                     </ul>
+                    <!-- 无效密钥分页控件容器 -->
+                    <div id="invalidPaginationControls" class="flex justify-center items-center mt-4 space-x-2">
+                        <!-- Pagination controls will be generated by JS -->
+                    </div>
                 </div>
             </div>
 
             <!-- Removed old total keys display -->
         </div>
     </div>
-    
+
     <!-- Scroll buttons are now in base.html -->
     <div class="scroll-buttons">
          <button class="scroll-button" onclick="scrollToTop()" title="回到顶部">
@@ -475,7 +531,7 @@
              <i class="fas fa-chevron-down"></i>
          </button>
      </div>
-    
+
     <!-- Notification component is now in base.html (use id="notification") -->
     <div id="notification" class="notification"></div>
     <!-- 重置确认模态框 -->
@@ -500,7 +556,7 @@
             </div>
         </div>
     </div>
-    <!-- 验证确认模态框移到 resetModal 外部，避免嵌套导致显示异常 -->
+    <!-- 验证确认模态框 -->
     <div id="verifyModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-lg p-6 shadow-xl max-w-md w-full animate-fade-in">
             <div class="flex items-center justify-between mb-4">
@@ -522,7 +578,7 @@
             </div>
         </div>
     </div>
-    
+
     <!-- 操作结果模态框 -->
     <div id="resultModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-2xl p-0 shadow-2xl max-w-lg w-full animate-fade-in border border-gray-200">
@@ -537,8 +593,9 @@
             </div>
             <div class="px-8 pb-2 w-full">
                 <div id="resultModalMessage"
-                     class="text-gray-700 text-base leading-relaxed break-all whitespace-pre-line max-h-60 overflow-y-auto border border-gray-100 rounded-lg bg-gray-50 p-4 shadow-inner"
+                     class="text-gray-700 text-base leading-relaxed break-words whitespace-pre-line max-h-80 overflow-y-auto border border-gray-100 rounded-lg bg-gray-50 p-4 shadow-inner"
                      style="font-family: 'JetBrains Mono', 'Fira Mono', 'Consolas', 'monospace';">
+                    <!-- Content is dynamically generated by JS -->
                 </div>
             </div>
             <div class="flex justify-center px-8 pb-6 pt-2">
@@ -596,71 +653,15 @@
            </div>
        </div>
    </div>
-    
+
     <!-- Footer is now in base.html -->
-    
+
 {% endblock %}
 
 {% block body_scripts %}
     <script>
-        // keys_status.html specific JavaScript initialization
-        document.addEventListener('DOMContentLoaded', () => {
-            // Filter functionality based on fail count threshold
-            const thresholdInput = document.getElementById('failCountThreshold');
-            const validKeysList = document.getElementById('validKeys');
-
-            function filterValidKeys() {
-                const threshold = parseInt(thresholdInput.value, 10);
-                if (isNaN(threshold)) return; // Do nothing if input is not a number
-
-                const keys = validKeysList.querySelectorAll('li');
-                let visibleCount = 0;
-                keys.forEach(keyItem => {
-                    // Check if it's a key item (has data-fail-count) before processing
-                    if (keyItem.hasAttribute('data-fail-count')) {
-                        const failCount = parseInt(keyItem.getAttribute('data-fail-count'), 10);
-                        if (failCount >= threshold) {
-                            keyItem.style.display = ''; // Show item
-                            visibleCount++;
-                        } else {
-                            keyItem.style.display = 'none'; // Hide item
-                        }
-                    }
-                });
-                 // Optional: Show a message if no keys match the filter
-                 const noMatchMsgId = 'no-valid-keys-msg';
-                 let noMatchMsg = validKeysList.querySelector(`#${noMatchMsgId}`);
-                 if (visibleCount === 0 && keys.length > 0) { // Only show if there were keys initially
-                     if (!noMatchMsg) {
-                         noMatchMsg = document.createElement('li');
-                         noMatchMsg.id = noMatchMsgId;
-                         noMatchMsg.className = 'text-center text-gray-500 py-4';
-                         noMatchMsg.textContent = '没有符合条件的有效密钥';
-                         validKeysList.appendChild(noMatchMsg);
-                     }
-                     noMatchMsg.style.display = '';
-                 } else if (noMatchMsg) {
-                     noMatchMsg.style.display = 'none';
-                 }
-            }
-
-            if (thresholdInput && validKeysList) {
-                 thresholdInput.addEventListener('input', filterValidKeys);
-                 // Initial filter on load
-                 filterValidKeys();
-            }
-
-            // Initialize other elements or event listeners if needed
-            // The main logic (verifyKey, resetKeyFailCount, copyKey, etc.) is in keys_status.js
-            // The toggleSection logic is now specific to this page
-             window.toggleSection = function(header, sectionId) {
-                 const toggleIcon = header.querySelector('.toggle-icon');
-                 const content = header.nextElementSibling; // Assumes content is immediately after header
-                 if (toggleIcon && content) {
-                     toggleIcon.classList.toggle('collapsed');
-                     content.classList.toggle('collapsed');
-                 }
-             }
-        });
+        // keys_status.html specific JavaScript initialization is now handled by keys_status.js
+        // The DOMContentLoaded listener in keys_status.js will execute after the DOM is ready.
+        // No inline script needed here anymore.
     </script>
 {% endblock %}

@@ -226,6 +226,10 @@ app/
 
 * **[OneLine](https://github.com/chengtx809/OneLine)** by [chengtx809](https://github.com/chengtx809) - OneLine一线：AI驱动的热点事件时间轴生成工具
 
+## 🎁 项目支持
+
+如果你觉得这个项目对你有帮助，可以考虑通过 [爱发电](https://afdian.com/a/snaily) 支持我。
+
 ## 许可证
 
 本项目采用 CC BY-NC 4.0（署名-非商业性使用）协议，禁止任何形式的商业倒卖服务，详见 LICENSE 文件。

@@ -90,8 +90,10 @@ scheduler_instance = None
 
 def start_scheduler():
     global scheduler_instance
-    if scheduler_instance is None:
+    if scheduler_instance is None or not scheduler_instance.running:
+        logger.info("Starting scheduler...")
         scheduler_instance = setup_scheduler()
+    logger.info("Scheduler is already running.")
 
 def stop_scheduler():
     global scheduler_instance
