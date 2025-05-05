@@ -1,12 +1,12 @@
-
 import base64
 import json
 import random
 import string
-from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
 import time
 import uuid
+from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional
+
 from app.config.config import settings
 from app.utils.uploader import ImageUploaderFactory
 
@@ -15,7 +15,9 @@ class ResponseHandler(ABC):
     """响应处理器基类"""
 
     @abstractmethod
-    def handle_response(self, response: Dict[str, Any], model: str, stream: bool = False) -> Dict[str, Any]:
+    def handle_response(
+        self, response: Dict[str, Any], model: str, stream: bool = False
+    ) -> Dict[str, Any]:
         pass
 
 
@@ -26,14 +28,20 @@ class GeminiResponseHandler(ResponseHandler):
         self.thinking_first = True
         self.thinking_status = False
 
-    def handle_response(self, response: Dict[str, Any], model: str, stream: bool = False) -> Dict[str, Any]:
+    def handle_response(
+        self, response: Dict[str, Any], model: str, stream: bool = False
+    ) -> Dict[str, Any]:
         if stream:
             return _handle_gemini_stream_response(response, model, stream)
         return _handle_gemini_normal_response(response, model, stream)
 
 
-def _handle_openai_stream_response(response: Dict[str, Any], model: str, finish_reason: str) -> Dict[str, Any]:
-    text, tool_calls = _extract_result(response, model, stream=True, gemini_format=False)
+def _handle_openai_stream_response(
+    response: Dict[str, Any], model: str, finish_reason: str
+) -> Dict[str, Any]:
+    text, tool_calls = _extract_result(
+        response, model, stream=True, gemini_format=False
+    )
     if not text and not tool_calls:
         delta = {}
     else:
@@ -50,8 +58,12 @@ def _handle_openai_stream_response(response: Dict[str, Any], model: str, finish_
     }
 
 
-def _handle_openai_normal_response(response: Dict[str, Any], model: str, finish_reason: str) -> Dict[str, Any]:
-    text, tool_calls = _extract_result(response, model, stream=False, gemini_format=False)
+def _handle_openai_normal_response(
+    response: Dict[str, Any], model: str, finish_reason: str
+) -> Dict[str, Any]:
+    text, tool_calls = _extract_result(
+        response, model, stream=False, gemini_format=False
+    )
     return {
         "id": f"chatcmpl-{uuid.uuid4()}",
         "object": "chat.completion",
@@ -60,7 +72,11 @@ def _handle_openai_normal_response(response: Dict[str, Any], model: str, finish_
         "choices": [
             {
                 "index": 0,
-                "message": {"role": "assistant", "content": text, "tool_calls": tool_calls},
+                "message": {
+                    "role": "assistant",
+                    "content": text,
+                    "tool_calls": tool_calls,
+                },
                 "finish_reason": finish_reason,
             }
         ],
@@ -77,59 +93,67 @@ class OpenAIResponseHandler(ResponseHandler):
         self.thinking_status = False
 
     def handle_response(
-            self,
-            response: Dict[str, Any],
-            model: str,
-            stream: bool = False,
-            finish_reason: str = None
+        self,
+        response: Dict[str, Any],
+        model: str,
+        stream: bool = False,
+        finish_reason: str = None,
     ) -> Optional[Dict[str, Any]]:
         if stream:
             return _handle_openai_stream_response(response, model, finish_reason)
         return _handle_openai_normal_response(response, model, finish_reason)
-    
-    def handle_image_chat_response(self, image_str: str, model: str, stream=False, finish_reason="stop"):
+
+    def handle_image_chat_response(
+        self, image_str: str, model: str, stream=False, finish_reason="stop"
+    ):
         if stream:
-            return _handle_openai_stream_image_response(image_str,model,finish_reason)
-        return _handle_openai_normal_image_response(image_str,model,finish_reason)
-       
-            
-def _handle_openai_stream_image_response(image_str: str,model: str,finish_reason: str) -> Dict[str, Any]:
+            return _handle_openai_stream_image_response(image_str, model, finish_reason)
+        return _handle_openai_normal_image_response(image_str, model, finish_reason)
+
+
+def _handle_openai_stream_image_response(
+    image_str: str, model: str, finish_reason: str
+) -> Dict[str, Any]:
     return {
         "id": f"chatcmpl-{uuid.uuid4()}",
         "object": "chat.completion.chunk",
         "created": int(time.time()),
         "model": model,
-        "choices": [{
-            "index": 0,
-            "delta": {"content": image_str} if image_str else {},
-            "finish_reason": finish_reason
-        }]
+        "choices": [
+            {
+                "index": 0,
+                "delta": {"content": image_str} if image_str else {},
+                "finish_reason": finish_reason,
+            }
+        ],
     }
 
 
-def _handle_openai_normal_image_response(image_str: str,model: str,finish_reason: str) -> Dict[str, Any]:
+def _handle_openai_normal_image_response(
+    image_str: str, model: str, finish_reason: str
+) -> Dict[str, Any]:
     return {
         "id": f"chatcmpl-{uuid.uuid4()}",
         "object": "chat.completion",
         "created": int(time.time()),
         "model": model,
-        "choices": [{
-            "index": 0,
-            "message": {
-                "role": "assistant",
-                "content": image_str
-            },
-            "finish_reason": finish_reason
-        }],
-        "usage": {
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-            "total_tokens": 0
-        }
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": image_str},
+                "finish_reason": finish_reason,
+            }
+        ],
+        "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
     }
 
 
-def _extract_result(response: Dict[str, Any], model: str, stream: bool = False, gemini_format: bool = False) -> tuple[str, List[Dict[str, Any]]]:
+def _extract_result(
+    response: Dict[str, Any],
+    model: str,
+    stream: bool = False,
+    gemini_format: bool = False,
+) -> tuple[str, List[Dict[str, Any]]]:
     text, tool_calls = "", []
     if stream:
         if response.get("candidates"):
@@ -145,13 +169,9 @@ def _extract_result(response: Dict[str, Any], model: str, stream: bool = False, 
             elif "codeExecution" in parts[0]:
                 text = _format_code_block(parts[0]["codeExecution"])
             elif "executableCodeResult" in parts[0]:
-                text = _format_execution_result(
-                    parts[0]["executableCodeResult"]
-                )
+                text = _format_execution_result(parts[0]["executableCodeResult"])
             elif "codeExecutionResult" in parts[0]:
-                text = _format_execution_result(
-                    parts[0]["codeExecutionResult"]
-                )
+                text = _format_execution_result(parts[0]["codeExecutionResult"])
             elif "inlineData" in parts[0]:
                 text = _extract_image_data(parts[0])
             else:
@@ -165,10 +185,10 @@ def _extract_result(response: Dict[str, Any], model: str, stream: bool = False, 
                 if settings.SHOW_THINKING_PROCESS:
                     if len(candidate["content"]["parts"]) == 2:
                         text = (
-                                "> thinking\n\n"
-                                + candidate["content"]["parts"][0]["text"]
-                                + "\n\n---\n> output\n\n"
-                                + candidate["content"]["parts"][1]["text"]
+                            "> thinking\n\n"
+                            + candidate["content"]["parts"][0]["text"]
+                            + "\n\n---\n> output\n\n"
+                            + candidate["content"]["parts"][1]["text"]
                         )
                     else:
                         text = candidate["content"]["parts"][0]["text"]
@@ -186,34 +206,47 @@ def _extract_result(response: Dict[str, Any], model: str, stream: bool = False, 
                         elif "inlineData" in part:
                             text += _extract_image_data(part)
 
-
             text = _add_search_link_text(model, candidate, text)
-            tool_calls = _extract_tool_calls(candidate["content"]["parts"], gemini_format)
+            tool_calls = _extract_tool_calls(
+                candidate["content"]["parts"], gemini_format
+            )
         else:
             text = "暂无返回"
     return text, tool_calls
 
+
 def _extract_image_data(part: dict) -> str:
     image_uploader = None
     if settings.UPLOAD_PROVIDER == "smms":
-        image_uploader = ImageUploaderFactory.create(provider=settings.UPLOAD_PROVIDER,api_key=settings.SMMS_SECRET_TOKEN)
+        image_uploader = ImageUploaderFactory.create(
+            provider=settings.UPLOAD_PROVIDER, api_key=settings.SMMS_SECRET_TOKEN
+        )
     elif settings.UPLOAD_PROVIDER == "picgo":
-        image_uploader = ImageUploaderFactory.create(provider=settings.UPLOAD_PROVIDER,api_key=settings.PICGO_API_KEY)
+        image_uploader = ImageUploaderFactory.create(
+            provider=settings.UPLOAD_PROVIDER, api_key=settings.PICGO_API_KEY
+        )
     elif settings.UPLOAD_PROVIDER == "cloudflare_imgbed":
-        image_uploader = ImageUploaderFactory.create(provider=settings.UPLOAD_PROVIDER,base_url=settings.CLOUDFLARE_IMGBED_URL,auth_code=settings.CLOUDFLARE_IMGBED_AUTH_CODE)
+        image_uploader = ImageUploaderFactory.create(
+            provider=settings.UPLOAD_PROVIDER,
+            base_url=settings.CLOUDFLARE_IMGBED_URL,
+            auth_code=settings.CLOUDFLARE_IMGBED_AUTH_CODE,
+        )
     current_date = time.strftime("%Y/%m/%d")
     filename = f"{current_date}/{uuid.uuid4().hex[:8]}.png"
     base64_data = part["inlineData"]["data"]
-    #将base64_data转成bytes数组
+    # 将base64_data转成bytes数组
     bytes_data = base64.b64decode(base64_data)
-    upload_response = image_uploader.upload(bytes_data,filename)
+    upload_response = image_uploader.upload(bytes_data, filename)
     if upload_response.success:
         text = f"\n\n![image]({upload_response.data.url})\n\n"
     else:
         text = ""
     return text
-    
-def _extract_tool_calls(parts: List[Dict[str, Any]], gemini_format: bool) -> List[Dict[str, Any]]:
+
+
+def _extract_tool_calls(
+    parts: List[Dict[str, Any]], gemini_format: bool
+) -> List[Dict[str, Any]]:
     """提取工具调用信息"""
     if not parts or not isinstance(parts, list):
         return []
@@ -249,8 +282,12 @@ def _extract_tool_calls(parts: List[Dict[str, Any]], gemini_format: bool) -> Lis
     return tool_calls
 
 
-def _handle_gemini_stream_response(response: Dict[str, Any], model: str, stream: bool) -> Dict[str, Any]:
-    text, tool_calls = _extract_result(response, model, stream=stream, gemini_format=True)
+def _handle_gemini_stream_response(
+    response: Dict[str, Any], model: str, stream: bool
+) -> Dict[str, Any]:
+    text, tool_calls = _extract_result(
+        response, model, stream=stream, gemini_format=True
+    )
     if tool_calls:
         content = {"parts": tool_calls, "role": "model"}
     else:
@@ -259,8 +296,12 @@ def _handle_gemini_stream_response(response: Dict[str, Any], model: str, stream:
     return response
 
 
-def _handle_gemini_normal_response(response: Dict[str, Any], model: str, stream: bool) -> Dict[str, Any]:
-    text, tool_calls = _extract_result(response, model, stream=stream, gemini_format=True)
+def _handle_gemini_normal_response(
+    response: Dict[str, Any], model: str, stream: bool
+) -> Dict[str, Any]:
+    text, tool_calls = _extract_result(
+        response, model, stream=stream, gemini_format=True
+    )
     if tool_calls:
         content = {"parts": tool_calls, "role": "model"}
     else:
@@ -278,10 +319,10 @@ def _format_code_block(code_data: dict) -> str:
 
 def _add_search_link_text(model: str, candidate: dict, text: str) -> str:
     if (
-            settings.SHOW_SEARCH_LINK
-            and model.endswith("-search")
-            and "groundingMetadata" in candidate
-            and "groundingChunks" in candidate["groundingMetadata"]
+        settings.SHOW_SEARCH_LINK
+        and model.endswith("-search")
+        and "groundingMetadata" in candidate
+        and "groundingChunks" in candidate["groundingMetadata"]
     ):
         grounding_chunks = candidate["groundingMetadata"]["groundingChunks"]
         text += "\n\n---\n\n"

@@ -30,6 +30,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
             and not request.url.path.startswith(f"/{API_VERSION}")
             and not request.url.path.startswith("/health")
             and not request.url.path.startswith("/hf")
+            and not request.url.path.startswith("/openai")
+            and not request.url.path.startswith("/api/version/check")
         ):
 
             auth_token = request.cookies.get("auth_token")

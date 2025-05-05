@@ -1,13 +1,18 @@
 # app/services/chat_service.py
 
+import datetime
 import json
 import re
-import datetime # Add datetime import
-import time # Add time import
+import time
 from copy import deepcopy
 from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
 from app.config.config import settings
+from app.core.constants import GEMINI_2_FLASH_EXP_SAFETY_SETTINGS
+from app.database.services import (
+    add_error_log,
+    add_request_log,
+)
 from app.domain.openai_models import ChatRequest, ImageGenerationRequest
 from app.handler.message_converter import OpenAIMessageConverter
 from app.handler.response_handler import OpenAIResponseHandler
@@ -16,17 +21,16 @@ from app.log.logger import get_openai_logger
 from app.service.client.api_client import GeminiApiClient
 from app.service.image.image_create_service import ImageCreateService
 from app.service.key.key_manager import KeyManager
-from app.database.services import add_error_log, add_request_log # Import add_request_log
 
 logger = get_openai_logger()
 
 
-def _has_image_parts(contents: List[Dict[str, Any]]) -> bool:
-    """判断消息是否包含图片部分"""
+def _has_media_parts(contents: List[Dict[str, Any]]) -> bool:
+    """判断消息是否包含图片、音频或视频部分 (inline_data)"""
     for content in contents:
-        if "parts" in content:
+        if content and "parts" in content and isinstance(content["parts"], list):
             for part in content["parts"]:
-                if "image_url" in part or "inline_data" in part:
+                if isinstance(part, dict) and "inline_data" in part:
                     return True
     return False
 
@@ -46,9 +50,13 @@ def _build_tools(
             or model.endswith("-image")
             or model.endswith("-image-generation")
         )
-        and not _has_image_parts(messages)
+        and not _has_media_parts(messages)  # Use the updated check
     ):
         tool["codeExecution"] = {}
+        logger.debug("Code execution tool enabled.")
+    elif _has_media_parts(messages):
+        logger.debug("Code execution tool disabled due to media parts presence.")
+
     if model.endswith("-search"):
         tool["googleSearch"] = {}
 
@@ -62,7 +70,9 @@ def _build_tools(
             if item.get("type", "") == "function" and item.get("function"):
                 function = deepcopy(item.get("function"))
                 parameters = function.get("parameters", {})
-                if parameters.get("type") == "object" and not parameters.get("properties", {}):
+                if parameters.get("type") == "object" and not parameters.get(
+                    "properties", {}
+                ):
                     function.pop("parameters", None)
 
                 function_declarations.append(function)
@@ -93,20 +103,8 @@ def _get_safety_settings(model: str) -> List[Dict[str, str]]:
     #     and "gemini-2.0-pro-exp" not in model
     # ):
     if model == "gemini-2.0-flash-exp":
-        return [
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "OFF"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "OFF"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "OFF"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "OFF"},
-            {"category": "HARM_CATEGORY_CIVIC_INTEGRITY", "threshold": "OFF"},
-        ]
-    return [
-        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_CIVIC_INTEGRITY", "threshold": "BLOCK_NONE"},
-    ]
+        return GEMINI_2_FLASH_EXP_SAFETY_SETTINGS
+    return settings.SAFETY_SETTINGS
 
 
 def _build_payload(
@@ -131,9 +129,11 @@ def _build_payload(
     if request.model.endswith("-image") or request.model.endswith("-image-generation"):
         payload["generationConfig"]["responseModalities"] = ["Text", "Image"]
     if request.model.endswith("-non-thinking"):
-        payload["generationConfig"]["thinkingConfig"] = {"thinkingBudget": 0} 
+        payload["generationConfig"]["thinkingConfig"] = {"thinkingBudget": 0}
     if request.model in settings.THINKING_BUDGET_MAP:
-        payload["generationConfig"]["thinkingConfig"] = {"thinkingBudget": settings.THINKING_BUDGET_MAP.get(request.model,1000)}
+        payload["generationConfig"]["thinkingConfig"] = {
+            "thinkingBudget": settings.THINKING_BUDGET_MAP.get(request.model, 1000)
+        }
 
     if (
         instruction
@@ -205,7 +205,7 @@ class OpenAIChatService:
         try:
             response = await self.api_client.generate_content(payload, model, api_key)
             is_success = True
-            status_code = 200 # Assume 200 on success
+            status_code = 200
             return self.response_handler.handle_response(
                 response, model, stream=False, finish_reason="stop"
             )
@@ -218,17 +218,17 @@ class OpenAIChatService:
             if match:
                 status_code = int(match.group(1))
             else:
-                status_code = 500 # Default if parsing fails
+                status_code = 500
 
             await add_error_log(
-                gemini_key=api_key, # Note: Parameter name is gemini_key in add_error_log
+                gemini_key=api_key,
                 model_name=model,
                 error_type="openai-chat-non-stream",
                 error_log=error_log_msg,
                 error_code=status_code,
-                request_msg=payload
+                request_msg=payload,
             )
-            raise e # Re-throw exception
+            raise e
         finally:
             end_time = time.perf_counter()
             latency_ms = int((end_time - start_time) * 1000)
@@ -238,7 +238,7 @@ class OpenAIChatService:
                 is_success=is_success,
                 status_code=status_code,
                 latency_ms=latency_ms,
-                request_time=request_datetime
+                request_time=request_datetime,
             )
 
     async def _handle_stream_completion(
@@ -261,6 +261,7 @@ class OpenAIChatService:
                 async for line in self.api_client.stream_generate_content(
                     payload, model, current_attempt_key
                 ):
+                    # print(line)
                     if line.startswith("data:"):
                         chunk = json.loads(line[6:])
                         openai_chunk = self.response_handler.handle_response(
@@ -293,7 +294,7 @@ class OpenAIChatService:
                 yield "data: [DONE]\n\n"
                 logger.info("Streaming completed successfully")
                 is_success = True
-                status_code = 200 # Assume 200 on success
+                status_code = 200
                 break  # 成功后退出循环
             except Exception as e:
                 retries += 1
@@ -307,7 +308,7 @@ class OpenAIChatService:
                 if match:
                     status_code = int(match.group(1))
                 else:
-                    status_code = 500 # Default if parsing fails
+                    status_code = 500
 
                 # Log error to error log table
                 await add_error_log(
@@ -316,38 +317,40 @@ class OpenAIChatService:
                     error_type="openai-chat-stream",
                     error_log=error_log_msg,
                     error_code=status_code,
-                    request_msg=payload
+                    request_msg=payload,
                 )
 
                 # Attempt to switch API Key
                 # Ensure key_manager is available (might need adjustment if not always passed)
                 if self.key_manager:
-                    api_key = await self.key_manager.handle_api_failure(current_attempt_key, retries)
+                    api_key = await self.key_manager.handle_api_failure(
+                        current_attempt_key, retries
+                    )
                     if api_key:
                         logger.info(f"Switched to new API key: {api_key}")
                     else:
-                        logger.error(f"No valid API key available after {retries} retries.")
-                        break # Exit loop if no key available
+                        logger.error(
+                            f"No valid API key available after {retries} retries."
+                        )
+                        break 
                 else:
-                        logger.error("KeyManager not available for retry logic.")
-                        break # Exit loop if key manager is missing
+                    logger.error("KeyManager not available for retry logic.")
+                    break 
 
                 if retries >= max_retries:
-                    logger.error(
-                        f"Max retries ({max_retries}) reached for streaming."
-                    )
-                    break # Exit loop after max retries
+                    logger.error(f"Max retries ({max_retries}) reached for streaming.")
+                    break
             finally:
                 # Log the final outcome of the streaming request
                 end_time = time.perf_counter()
                 latency_ms = int((end_time - start_time) * 1000)
                 await add_request_log(
                     model_name=model,
-                    api_key=final_api_key, # Log the last key used
-                    is_success=is_success, # Log the final success status
-                    status_code=status_code, # Log the last known status code
-                    latency_ms=latency_ms, # Log total time including retries
-                    request_time=request_datetime
+                    api_key=final_api_key,
+                    is_success=is_success,
+                    status_code=status_code,
+                    latency_ms=latency_ms,
+                    request_time=request_datetime,
                 )
                 # If the loop finished due to failure, yield error and DONE
                 if not is_success and retries >= max_retries:
@@ -355,9 +358,7 @@ class OpenAIChatService:
                     yield "data: [DONE]\n\n"
 
     async def create_image_chat_completion(
-        self,
-        request: ChatRequest,
-        api_key: str
+        self, request: ChatRequest, api_key: str
     ) -> Union[Dict[str, Any], AsyncGenerator[str, None]]:
 
         image_generate_request = ImageGenerationRequest()
@@ -367,18 +368,22 @@ class OpenAIChatService:
         )
 
         if request.stream:
-            return self._handle_stream_image_completion(request.model, image_res, api_key)
+            return self._handle_stream_image_completion(
+                request.model, image_res, api_key
+            )
         else:
-            return await self._handle_normal_image_completion(request.model, image_res, api_key)
+            return await self._handle_normal_image_completion(
+                request.model, image_res, api_key
+            )
 
     async def _handle_stream_image_completion(
-        self, model: str, image_data: str, api_key:str
+        self, model: str, image_data: str, api_key: str
     ) -> AsyncGenerator[str, None]:
         logger.info(f"Starting stream image completion for model: {model}")
         start_time = time.perf_counter()
-        request_datetime = datetime.datetime.now() # Although not used for DB log here
+        request_datetime = datetime.datetime.now()
         is_success = False
-        status_code = None # Although not used for DB log here
+        status_code = None 
 
         try:
             if image_data:
@@ -402,7 +407,9 @@ class OpenAIChatService:
                         # 如果没有文本内容（如图片URL等），整块输出
                         yield f"data: {json.dumps(openai_chunk)}\n\n"
             yield f"data: {json.dumps(self.response_handler.handle_response({}, model, stream=True, finish_reason='stop'))}\n\n"
-            logger.info(f"Stream image completion finished successfully for model: {model}")
+            logger.info(
+                f"Stream image completion finished successfully for model: {model}"
+            )
             is_success = True
             status_code = 200
             yield "data: [DONE]\n\n"
@@ -410,46 +417,51 @@ class OpenAIChatService:
             is_success = False
             error_log_msg = f"Stream image completion failed for model {model}: {e}"
             logger.error(error_log_msg)
-            status_code = 500 # Default error code
+            status_code = 500 
             await add_error_log(
                 gemini_key=api_key,
                 model_name=model,
-                error_type="openai-image-stream", # Specific error type
+                error_type="openai-image-stream",
                 error_log=error_log_msg,
                 error_code=status_code,
-                request_msg={"image_data_truncated": image_data[:1000]} # Log truncated data
+                request_msg={
+                    "image_data_truncated": image_data[:1000]
+                }, 
             )
-            yield f"data: {json.dumps({'error': error_log_msg})}\n\n" # Send error to client
-            yield "data: [DONE]\n\n" # Still need DONE message
-            # Re-raising might break the stream, decide if needed
+            yield f"data: {json.dumps({'error': error_log_msg})}\n\n"
+            yield "data: [DONE]\n\n"
         finally:
             end_time = time.perf_counter()
             latency_ms = int((end_time - start_time) * 1000)
-            logger.info(f"Stream image completion for model {model} took {latency_ms} ms. Success: {is_success}")
+            logger.info(
+                f"Stream image completion for model {model} took {latency_ms} ms. Success: {is_success}"
+            )
             await add_request_log(
                 model_name=model,
                 api_key=api_key,
                 is_success=is_success,
                 status_code=status_code,
                 latency_ms=latency_ms,
-                request_time=request_datetime
+                request_time=request_datetime,
             )
 
     async def _handle_normal_image_completion(
-        self, model: str, image_data: str, api_key: str # Add api_key parameter
+        self, model: str, image_data: str, api_key: str 
     ) -> Dict[str, Any]:
         logger.info(f"Starting normal image completion for model: {model}")
         start_time = time.perf_counter()
-        request_datetime = datetime.datetime.now() # Although not used for DB log here
+        request_datetime = datetime.datetime.now() 
         is_success = False
-        status_code = None # Although not used for DB log here
+        status_code = None 
         result = None
 
         try:
             result = self.response_handler.handle_image_chat_response(
                 image_data, model, stream=False, finish_reason="stop"
             )
-            logger.info(f"Normal image completion finished successfully for model: {model}")
+            logger.info(
+                f"Normal image completion finished successfully for model: {model}"
+            )
             is_success = True
             status_code = 200
             return result
@@ -457,26 +469,30 @@ class OpenAIChatService:
             is_success = False
             error_log_msg = f"Normal image completion failed for model {model}: {e}"
             logger.error(error_log_msg)
-            status_code = 500 # Default error code
+            status_code = 500
             await add_error_log(
                 gemini_key=api_key,
                 model_name=model,
-                error_type="openai-image-non-stream", # Specific error type
+                error_type="openai-image-non-stream",
                 error_log=error_log_msg,
                 error_code=status_code,
-                request_msg={"image_data_truncated": image_data[:1000]} # Log truncated data
+                request_msg={
+                    "image_data_truncated": image_data[:1000]
+                },
             )
             # Re-raise the exception so the caller knows about the failure
             raise e
         finally:
             end_time = time.perf_counter()
             latency_ms = int((end_time - start_time) * 1000)
-            logger.info(f"Normal image completion for model {model} took {latency_ms} ms. Success: {is_success}")
+            logger.info(
+                f"Normal image completion for model {model} took {latency_ms} ms. Success: {is_success}"
+            )
             await add_request_log(
                 model_name=model,
                 api_key=api_key,
                 is_success=is_success,
                 status_code=status_code,
                 latency_ms=latency_ms,
-                request_time=request_datetime
+                request_time=request_datetime,
             )

@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from pydantic_settings import BaseSettings
 from sqlalchemy import insert, update, select
 
-from app.core.constants import API_VERSION, DEFAULT_CREATE_IMAGE_MODEL, DEFAULT_FILTER_MODELS, DEFAULT_MODEL, DEFAULT_STREAM_CHUNK_SIZE, DEFAULT_STREAM_LONG_TEXT_THRESHOLD, DEFAULT_STREAM_MAX_DELAY, DEFAULT_STREAM_MIN_DELAY, DEFAULT_STREAM_SHORT_TEXT_THRESHOLD, DEFAULT_TIMEOUT, MAX_RETRIES
+from app.core.constants import API_VERSION, DEFAULT_CREATE_IMAGE_MODEL, DEFAULT_FILTER_MODELS, DEFAULT_MODEL, DEFAULT_SAFETY_SETTINGS, DEFAULT_STREAM_CHUNK_SIZE, DEFAULT_STREAM_LONG_TEXT_THRESHOLD, DEFAULT_STREAM_MAX_DELAY, DEFAULT_STREAM_MIN_DELAY, DEFAULT_STREAM_SHORT_TEXT_THRESHOLD, DEFAULT_TIMEOUT, MAX_RETRIES
 from app.log.logger import Logger
 
 
@@ -30,7 +30,8 @@ class Settings(BaseSettings):
     TEST_MODEL: str = DEFAULT_MODEL
     TIME_OUT: int = DEFAULT_TIMEOUT
     MAX_RETRIES: int = MAX_RETRIES
-    
+    PROXIES: List[str] = [] # 新增：代理服务器列表
+
     # 模型相关配置
     SEARCH_MODELS: List[str] = ["gemini-2.0-flash-exp"]
     IMAGE_MODELS: List[str] = ["gemini-2.0-flash-exp"]
@@ -68,6 +69,7 @@ class Settings(BaseSettings):
 
     # 日志配置
     LOG_LEVEL: str = "INFO" # 默认日志级别
+    SAFETY_SETTINGS: List[Dict[str, str]] = DEFAULT_SAFETY_SETTINGS # 新增：安全设置
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -120,6 +122,32 @@ def _parse_db_value(key: str, db_value: str, target_type: Type) -> Any:
                     # Log other errors (ValueError, TypeError) or JSON errors without single quotes
                     logger.error(f"Could not parse '{db_value}' as Dict[str, float] for key '{key}': {e1}. Returning empty dict.")
             return parsed_dict # Return the parsed dict or an empty one if all attempts fail
+        # 处理 List[Dict[str, str]]
+        elif target_type == List[Dict[str, str]]:
+            try:
+                parsed = json.loads(db_value)
+                if isinstance(parsed, list):
+                    # 验证列表中的每个元素是否为字典，并且键和值都是字符串
+                    valid = all(
+                        isinstance(item, dict) and
+                        all(isinstance(k, str) for k in item.keys()) and
+                        all(isinstance(v, str) for v in item.values())
+                        for item in parsed
+                    )
+                    if valid:
+                        return parsed
+                    else:
+                        logger.warning(f"Invalid structure in List[Dict[str, str]] for key '{key}'. Value: {db_value}")
+                        return [] # 或者返回默认值？这里返回空列表
+                else:
+                     logger.warning(f"Parsed DB value for key '{key}' is not a list type. Value: {db_value}")
+                     return []
+            except json.JSONDecodeError:
+                logger.error(f"Could not parse '{db_value}' as JSON for List[Dict[str, str]] for key '{key}'. Returning empty list.")
+                return []
+            except Exception as e:
+                logger.error(f"Error parsing List[Dict[str, str]] for key '{key}': {e}. Value: {db_value}. Returning empty list.")
+                return []
         # 处理 bool
         elif target_type == bool:
             return db_value.lower() in ('true', '1', 'yes', 'on')

@@ -1,15 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 from copy import deepcopy
+import asyncio
 from app.config.config import settings
 from app.log.logger import get_gemini_logger
 from app.core.security import SecurityService
-import asyncio # 导入 asyncio
 from app.domain.gemini_models import GeminiContent, GeminiRequest, ResetSelectedKeysRequest, VerifySelectedKeysRequest # 添加导入
 from app.service.chat.gemini_chat_service import GeminiChatService
 from app.service.key.key_manager import KeyManager, get_key_manager_instance
 from app.service.model.model_service import ModelService
 from app.handler.retry_handler import RetryHandler
+from app.handler.error_handler import handle_route_errors
 from app.core.constants import API_VERSION
 
 # 路由设置
@@ -43,62 +44,57 @@ async def list_models(
     _=Depends(security_service.verify_key_or_goog_api_key),
     key_manager: KeyManager = Depends(get_key_manager)
 ):
-    """获取可用的Gemini模型列表"""
-    logger.info("-" * 50 + "list_gemini_models" + "-" * 50)
+    """获取可用的 Gemini 模型列表，并根据配置添加衍生模型（搜索、图像、非思考）。"""
+    operation_name = "list_gemini_models"
+    logger.info("-" * 50 + operation_name + "-" * 50)
     logger.info("Handling Gemini models list request")
-    
-    api_key = await key_manager.get_first_valid_key()
-    logger.info(f"Using API key: {api_key}")
-    
-    models_json = model_service.get_gemini_models(api_key)
-    model_mapping = {x.get("name", "").split("/", maxsplit=1)[1]: x for x in models_json["models"]}
-    
-    # 添加搜索模型
-    if settings.SEARCH_MODELS:
-        for name in settings.SEARCH_MODELS:
-            model = model_mapping.get(name)
+
+    try:
+        api_key = await key_manager.get_first_valid_key()
+        if not api_key:
+             raise HTTPException(status_code=503, detail="No valid API keys available to fetch models.")
+        logger.info(f"Using API key: {api_key}")
+
+        models_data =await model_service.get_gemini_models(api_key)
+        if not models_data or "models" not in models_data:
+             raise HTTPException(status_code=500, detail="Failed to fetch base models list.")
+
+        models_json = deepcopy(models_data) # 操作副本以防修改原始缓存
+        model_mapping = {x.get("name", "").split("/", maxsplit=1)[-1]: x for x in models_json.get("models", [])}
+
+        def add_derived_model(base_name, suffix, display_suffix):
+            model = model_mapping.get(base_name)
             if not model:
-                continue
-                
+                logger.warning(f"Base model '{base_name}' not found for derived model '{suffix}'.")
+                return
             item = deepcopy(model)
-            item["name"] = f"models/{name}-search"
-            display_name = f'{item.get("displayName")} For Search'
+            item["name"] = f"models/{base_name}{suffix}"
+            display_name = f'{item.get("displayName", base_name)}{display_suffix}'
             item["displayName"] = display_name
             item["description"] = display_name
-            
             models_json["models"].append(item)
-    
-    # 添加图像生成模型
-    if settings.IMAGE_MODELS:
-        for name in settings.IMAGE_MODELS:
-            model = model_mapping.get(name)
-            if not model:
-                continue
-                
-            item = deepcopy(model)
-            item["name"] = f"models/{name}-image"
-            display_name = f'{item.get("displayName")} For Image'
-            item["displayName"] = display_name
-            item["description"] = display_name
-            
-            models_json["models"].append(item)
-            
-    # 添加思考模型的非思考版本
-    if settings.THINKING_MODELS:
-        for name in settings.THINKING_MODELS:
-            model = model_mapping.get(name)
-            if not model:
-                continue
-                
-            item = deepcopy(model)
-            item["name"] = f"models/{name}-non-thinking"
-            display_name = f'{item.get("displayName")} Non Thinking'
-            item["displayName"] = display_name
-            item["description"] = display_name
-            
-            models_json["models"].append(item)
-            
-    return models_json
+
+        # 添加衍生模型
+        if settings.SEARCH_MODELS:
+            for name in settings.SEARCH_MODELS:
+                add_derived_model(name, "-search", " For Search")
+        if settings.IMAGE_MODELS:
+            for name in settings.IMAGE_MODELS:
+                 add_derived_model(name, "-image", " For Image")
+        if settings.THINKING_MODELS:
+            for name in settings.THINKING_MODELS:
+                add_derived_model(name, "-non-thinking", " Non Thinking")
+
+        logger.info("Gemini models list request successful")
+        return models_json
+    except HTTPException as http_exc:
+        # 重新抛出已知的 HTTP 异常
+        raise http_exc
+    except Exception as e:
+        logger.error(f"Error getting Gemini models list: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail="Internal server error while fetching Gemini models list"
+        ) from e
 
 
 @router.post("/models/{model_name}:generateContent")
@@ -112,25 +108,22 @@ async def generate_content(
     key_manager: KeyManager = Depends(get_key_manager),
     chat_service: GeminiChatService = Depends(get_chat_service)
 ):
-    """非流式生成内容"""
-    logger.info("-" * 50 + "gemini_generate_content" + "-" * 50)
-    logger.info(f"Handling Gemini content generation request for model: {model_name}")
-    logger.debug(f"Request: \n{request.model_dump_json(indent=2)}")
-    logger.info(f"Using API key: {api_key}")
-    
-    if not model_service.check_model_support(model_name):
-        raise HTTPException(status_code=400, detail=f"Model {model_name} is not supported")
-    
-    try:
+    """处理 Gemini 非流式内容生成请求。"""
+    operation_name = "gemini_generate_content"
+    async with handle_route_errors(logger, operation_name, failure_message="Content generation failed"):
+        logger.info(f"Handling Gemini content generation request for model: {model_name}")
+        logger.debug(f"Request: \n{request.model_dump_json(indent=2)}")
+        logger.info(f"Using API key: {api_key}")
+
+        if not await model_service.check_model_support(model_name):
+            raise HTTPException(status_code=400, detail=f"Model {model_name} is not supported")
+
         response = await chat_service.generate_content(
             model=model_name,
             request=request,
             api_key=api_key
         )
         return response
-    except Exception as e:
-        logger.error(f"Chat completion failed after retries: {str(e)}")
-        raise HTTPException(status_code=500, detail="Chat completion failed") from e
 
 
 @router.post("/models/{model_name}:streamGenerateContent")
@@ -144,25 +137,24 @@ async def stream_generate_content(
     key_manager: KeyManager = Depends(get_key_manager),
     chat_service: GeminiChatService = Depends(get_chat_service)
 ):
-    """流式生成内容"""
-    logger.info("-" * 50 + "gemini_stream_generate_content" + "-" * 50)
-    logger.info(f"Handling Gemini streaming content generation for model: {model_name}")
-    logger.debug(f"Request: \n{request.model_dump_json(indent=2)}")
-    logger.info(f"Using API key: {api_key}")
-    
-    if not model_service.check_model_support(model_name):
-        raise HTTPException(status_code=400, detail=f"Model {model_name} is not supported")
-    
-    try:
+    """处理 Gemini 流式内容生成请求。"""
+    operation_name = "gemini_stream_generate_content"
+    # 流式请求的成功/失败日志在流处理中更复杂，这里仅用上下文管理器处理启动错误
+    async with handle_route_errors(logger, operation_name, failure_message="Streaming request initiation failed"):
+        logger.info(f"Handling Gemini streaming content generation for model: {model_name}")
+        logger.debug(f"Request: \n{request.model_dump_json(indent=2)}")
+        logger.info(f"Using API key: {api_key}")
+
+        if not await model_service.check_model_support(model_name):
+            raise HTTPException(status_code=400, detail=f"Model {model_name} is not supported")
+
         response_stream = chat_service.stream_generate_content(
             model=model_name,
             request=request,
             api_key=api_key
         )
+        # 注意：流本身的错误需要在服务层或流迭代中处理，这里只返回流响应
         return StreamingResponse(response_stream, media_type="text/event-stream")
-    except Exception as e:
-        logger.error(f"Streaming request failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Streaming request failed") from e
 
 @router.post("/reset-all-fail-counts")
 async def reset_all_key_fail_counts(key_type: str = None, key_manager: KeyManager = Depends(get_key_manager)):

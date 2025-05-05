@@ -2,17 +2,18 @@
 
 import json
 import re
-import datetime # Add datetime import
-import time # Add time import
+import datetime
+import time
 from typing import Any, AsyncGenerator, Dict, List
 from app.config.config import settings
+from app.core.constants import GEMINI_2_FLASH_EXP_SAFETY_SETTINGS
 from app.domain.gemini_models import GeminiRequest
 from app.handler.response_handler import GeminiResponseHandler
 from app.handler.stream_optimizer import gemini_optimizer
 from app.log.logger import get_gemini_logger
 from app.service.client.api_client import GeminiApiClient
 from app.service.key.key_manager import KeyManager
-from app.database.services import add_error_log, add_request_log # Import add_request_log
+from app.database.services import add_error_log, add_request_log
 
 logger = get_gemini_logger()
 
@@ -73,20 +74,8 @@ def _build_tools(model: str, payload: Dict[str, Any]) -> List[Dict[str, Any]]:
 def _get_safety_settings(model: str) -> List[Dict[str, str]]:
     """获取安全设置"""
     if model == "gemini-2.0-flash-exp":
-        return [
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "OFF"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "OFF"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "OFF"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "OFF"},
-            {"category": "HARM_CATEGORY_CIVIC_INTEGRITY", "threshold": "OFF"},
-        ]
-    return [
-        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_CIVIC_INTEGRITY", "threshold": "BLOCK_NONE"},
-    ]
+        return GEMINI_2_FLASH_EXP_SAFETY_SETTINGS
+    return settings.SAFETY_SETTINGS
 
 
 def _build_payload(model: str, request: GeminiRequest) -> Dict[str, Any]:

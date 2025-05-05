@@ -1,5 +1,5 @@
 fastapi
-httpx
+httpx[socks]
 openai
 pydantic
 pydantic_settings
@@ -16,6 +16,5 @@ sqlalchemy
 aiomysql
 databases
 python-dotenv
-apscheduler # 添加定时任务库
-
+apscheduler
 packaging

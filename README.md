@@ -67,6 +67,7 @@ app/
     >镜像地址: docker pull ghcr.io/snailyp/gemini-balance:latest
 * **模型列表自动维护**: 支持openai和gemini模型列表获取，与newapi自动获取模型列表完美兼容，无需手动填写。
 * **支持移除不使用的模型**: 默认提供的模型太多，很多用不上，可以通过`FILTERED_MODELS`过滤掉。
+* **代理支持**: 支持配置 HTTP/SOCKS5 代理服务器 (`PROXIES`)，用于访问 Gemini API，方便在特殊网络环境下使用。支持批量添加代理。
 
 ## 🚀 快速开始
 
@@ -166,6 +167,7 @@ app/
 | `CHECK_INTERVAL_HOURS`       | 可选，检查禁用 Key 是否恢复的时间间隔 (小时)                   | `1`                                                   |
 | `TIMEZONE`                   | 可选，应用程序使用的时区                                       | `Asia/Shanghai`                                       |
 | `TIME_OUT`                   | 可选，请求超时时间 (秒)                                        | `300`                                                 |
+| `PROXIES`                    | 可选，代理服务器列表 (例如 `http://user:pass@host:port`, `socks5://host:port`) | `[]`                                                  |
 | `LOG_LEVEL`                  | 可选，日志级别，例如 DEBUG, INFO, WARNING, ERROR, CRITICAL     | `INFO`                                                |
 | **图像生成相关**             |                                                          |                                                       |
 | `PAID_KEY`                   | 可选，付费版API Key，用于图片生成等高级功能                    | `your-paid-api-key`                                   |
@@ -193,12 +195,16 @@ app/
 * `POST /models/{model_name}:generateContent`: 使用指定的 Gemini 模型生成内容。
 * `POST /models/{model_name}:streamGenerateContent`: 使用指定的 Gemini 模型流式生成内容。
 
-### OpenAI API 相关 (`(/hf)/v1`)
+### OpenAI API 相关
 
-* `GET /v1/models`: 列出可用的 OpenAI 模型。
-* `POST /v1/chat/completions`: 通过 OpenAI API 进行聊天补全。
-* `POST /v1/images/generations`: 通过 OpenAI API 生成图像。
-* `POST /v1/embeddings`: 通过 OpenAI API 创建文本嵌入。
+* `GET (/hf)/v1/models`: 列出可用的模型 (底层用的gemini格式)。
+* `POST (/hf)/v1/chat/completions`: 进行聊天补全 (底层用的gemini格式, 支持流式传输)。
+* `POST (/hf)/v1/embeddings`: 创建文本嵌入 (底层用的gemini格式)。
+* `POST (/hf)/v1/images/generations`: 生成图像 (底层用的gemini格式)。
+* `GET /openai/v1/models`: 列出可用的模型 (底层用的openai格式)。
+* `POST /openai/v1/chat/completions`: 进行聊天补全 (底层用的openai格式, 支持流式传输, 可防止截断，速度也快)。
+* `POST /openai/v1/embeddings`: 创建文本嵌入 (底层用的openai格式)。
+* `POST /openai/v1/images/generations`: 生成图像 (底层用的openai格式)。
 
 ## 🤝 贡献
 

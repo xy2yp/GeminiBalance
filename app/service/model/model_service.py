@@ -1,50 +1,47 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-import requests
-
 from app.config.config import settings
 from app.log.logger import get_model_logger
+from app.service.client.api_client import GeminiApiClient
 
 logger = get_model_logger()
 
 
 class ModelService:
-    def get_gemini_models(self, api_key: str) -> Optional[Dict[str, Any]]:
-        url = f"{settings.BASE_URL}/models?key={api_key}"
+    async def get_gemini_models(self, api_key: str) -> Optional[Dict[str, Any]]:
+        """使用 GeminiApiClient 获取并过滤模型列表"""
+        api_client = GeminiApiClient(base_url=settings.BASE_URL) # 实例化客户端
+        gemini_models = await api_client.get_models(api_key)
 
-        try:
-            response = requests.get(url)
-            if response.status_code == 200:
-                gemini_models = response.json()
-
-                filtered_models_list = []
-                for model in gemini_models.get("models", []):
-                    model_id = model["name"].split("/")[-1]
-                    if model_id not in settings.FILTERED_MODELS:
-                        filtered_models_list.append(model)
-                    else:
-                        logger.debug(f"Filtered out model: {model_id}")
-
-                gemini_models["models"] = filtered_models_list
-                return gemini_models
-            else:
-                logger.error(f"Error: {response.status_code}")
-                logger.error(response.text)
-                return None
-        except requests.RequestException as e:
-            logger.error(f"Request failed: {e}")
+        if gemini_models is None:
+            logger.error("从 API 客户端获取模型列表失败。")
             return None
 
-    def get_gemini_openai_models(self, api_key: str) -> Optional[Dict[str, Any]]:
         try:
-            gemini_models = self.get_gemini_models(api_key)
-            return self.convert_to_openai_models_format(gemini_models)
-        except requests.RequestException as e:
-            logger.error(f"Request failed: {e}")
+            filtered_models_list = []
+            for model in gemini_models.get("models", []):
+                model_id = model["name"].split("/")[-1]
+                if model_id not in settings.FILTERED_MODELS:
+                    filtered_models_list.append(model)
+                else:
+                    logger.debug(f"Filtered out model: {model_id}")
+
+            gemini_models["models"] = filtered_models_list
+            return gemini_models
+        except Exception as e:
+            logger.error(f"处理模型列表时出错: {e}")
             return None
 
-    def convert_to_openai_models_format(
+    async def get_gemini_openai_models(self, api_key: str) -> Optional[Dict[str, Any]]:
+        """获取 Gemini 模型并转换为 OpenAI 格式"""
+        gemini_models = await self.get_gemini_models(api_key)
+        if gemini_models is None:
+            return None
+        
+        return await self.convert_to_openai_models_format(gemini_models)
+
+    async def convert_to_openai_models_format(
         self, gemini_models: Dict[str, Any]
     ) -> Dict[str, Any]:
         openai_format = {"object": "list", "data": [], "success": True}
@@ -81,7 +78,7 @@ class ModelService:
             openai_format["data"].append(image_model)
         return openai_format
 
-    def check_model_support(self, model: str) -> bool:
+    async def check_model_support(self, model: str) -> bool:
         if not model or not isinstance(model, str):
             return False
 

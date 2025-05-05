@@ -9,6 +9,7 @@ from app.domain.openai_models import (
     ImageGenerationRequest,
 )
 from app.handler.retry_handler import RetryHandler
+from app.handler.error_handler import handle_route_errors # 导入共享错误处理器
 from app.log.logger import get_openai_logger
 from app.service.chat.openai_chat_service import OpenAIChatService
 from app.service.embedding.embedding_service import EmbeddingService
@@ -47,17 +48,13 @@ async def list_models(
     _=Depends(security_service.verify_authorization),
     key_manager: KeyManager = Depends(get_key_manager),
 ):
-    logger.info("-" * 50 + "list_models" + "-" * 50)
-    logger.info("Handling models list request")
-    api_key = await key_manager.get_first_valid_key()
-    logger.info(f"Using API key: {api_key}")
-    try:
-        return model_service.get_gemini_openai_models(api_key)
-    except Exception as e:
-        logger.error(f"Error getting models list: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail="Internal server error while fetching models list"
-        ) from e
+    """获取可用的 OpenAI 模型列表 (兼容 Gemini 和 OpenAI)。"""
+    operation_name = "list_models"
+    async with handle_route_errors(logger, operation_name):
+        logger.info("Handling models list request")
+        api_key = await key_manager.get_first_valid_key()
+        logger.info(f"Using API key: {api_key}")
+        return await model_service.get_gemini_openai_models(api_key)
 
 
 @router.post("/v1/chat/completions")
@@ -70,33 +67,42 @@ async def chat_completion(
     key_manager: KeyManager = Depends(get_key_manager), # 保留 key_manager 用于获取 paid_key
     chat_service: OpenAIChatService = Depends(get_openai_chat_service),
 ):
-    # 如果model是imagen3,使用paid_key
-    if request.model == f"{settings.CREATE_IMAGE_MODEL}-chat":
-        api_key = await key_manager.get_paid_key()
-    logger.info("-" * 50 + "chat_completion" + "-" * 50)
-    logger.info(f"Handling chat completion request for model: {request.model}")
-    logger.debug(f"Request: \n{request.model_dump_json(indent=2)}")
-    logger.info(f"Using API key: {api_key}")
+    """处理 OpenAI 聊天补全请求，支持流式响应和特定模型切换。"""
+    operation_name = "chat_completion"
+    # 检查是否为图像生成相关的聊天模型
+    is_image_chat = request.model == f"{settings.CREATE_IMAGE_MODEL}-chat"
+    current_api_key = api_key # 保存原始 key
+    if is_image_chat:
+        current_api_key = await key_manager.get_paid_key() # 获取付费密钥
 
-    if not model_service.check_model_support(request.model):
-        raise HTTPException(
-            status_code=400, detail=f"Model {request.model} is not supported"
-        )
+    async with handle_route_errors(logger, operation_name):
+        logger.info(f"Handling chat completion request for model: {request.model}")
+        logger.debug(f"Request: \n{request.model_dump_json(indent=2)}")
+        logger.info(f"Using API key: {current_api_key}")
 
-    try:
-        # 如果model是imagen3,使用paid_key
-        if request.model == f"{settings.CREATE_IMAGE_MODEL}-chat":
-            response = await chat_service.create_image_chat_completion(request, api_key)
+        # 检查模型支持性应在错误处理块内，以便捕获并记录错误
+        if not await model_service.check_model_support(request.model):
+            # 使用 HTTPException，会被 handle_route_errors 捕获并记录
+            raise HTTPException(
+                status_code=400, detail=f"Model {request.model} is not supported"
+            )
+
+        if is_image_chat:
+            # 图像生成聊天
+            response = await chat_service.create_image_chat_completion(request, current_api_key)
+            # 处理流式响应
+            if request.stream:
+                return StreamingResponse(response, media_type="text/event-stream")
+            # 非流式直接返回结果
+            return response
         else:
-            response = await chat_service.create_chat_completion(request, api_key)
-        # 处理流式响应
-        if request.stream:
-            return StreamingResponse(response, media_type="text/event-stream")
-        logger.info("Chat completion request successful")
-        return response
-    except Exception as e:
-        logger.error(f"Chat completion failed after retries: {str(e)}")
-        raise HTTPException(status_code=500, detail="Chat completion failed") from e
+            # 普通聊天补全
+            response = await chat_service.create_chat_completion(request, current_api_key)
+            # 处理流式响应
+            if request.stream:
+                return StreamingResponse(response, media_type="text/event-stream")
+            # 非流式直接返回结果
+            return response
 
 
 @router.post("/v1/images/generations")
@@ -105,18 +111,12 @@ async def generate_image(
     request: ImageGenerationRequest,
     _=Depends(security_service.verify_authorization),
 ):
-    logger.info("-" * 50 + "generate_image" + "-" * 50)
-    logger.info(f"Handling image generation request for prompt: {request.prompt}")
-
-    try:
+    """处理 OpenAI 图像生成请求。"""
+    operation_name = "generate_image"
+    async with handle_route_errors(logger, operation_name):
+        logger.info(f"Handling image generation request for prompt: {request.prompt}")
         response = image_create_service.generate_images(request)
-        logger.info("Image generation request successful")
         return response
-    except Exception as e:
-        logger.error(f"Image generation request failed: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail="Image generation request failed"
-        ) from e
 
 
 @router.post("/v1/embeddings")
@@ -126,19 +126,16 @@ async def embedding(
     _=Depends(security_service.verify_authorization),
     key_manager: KeyManager = Depends(get_key_manager),
 ):
-    logger.info("-" * 50 + "embedding" + "-" * 50)
-    logger.info(f"Handling embedding request for model: {request.model}")
-    api_key = await key_manager.get_next_working_key()
-    logger.info(f"Using API key: {api_key}")
-    try:
+    """处理 OpenAI 文本嵌入请求。"""
+    operation_name = "embedding"
+    async with handle_route_errors(logger, operation_name):
+        logger.info(f"Handling embedding request for model: {request.model}")
+        api_key = await key_manager.get_next_working_key()
+        logger.info(f"Using API key: {api_key}")
         response = await embedding_service.create_embedding(
             input_text=request.input, model=request.model, api_key=api_key
         )
-        logger.info("Embedding request successful")
         return response
-    except Exception as e:
-        logger.error(f"Embedding request failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Embedding request failed") from e
 
 
 @router.get("/v1/keys/list")
@@ -147,10 +144,10 @@ async def get_keys_list(
     _=Depends(security_service.verify_auth_token),
     key_manager: KeyManager = Depends(get_key_manager),
 ):
-    """获取有效和无效的API key列表"""
-    logger.info("-" * 50 + "get_keys_list" + "-" * 50)
-    logger.info("Handling keys list request")
-    try:
+    """获取有效和无效的API key列表 (需要管理 Token 认证)。"""
+    operation_name = "get_keys_list"
+    async with handle_route_errors(logger, operation_name):
+        logger.info("Handling keys list request")
         keys_status = await key_manager.get_keys_by_status()
         return {
             "status": "success",
@@ -160,8 +157,3 @@ async def get_keys_list(
             },
             "total": len(keys_status["valid_keys"]) + len(keys_status["invalid_keys"]),
         }
-    except Exception as e:
-        logger.error(f"Error getting keys list: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail="Internal server error while fetching keys list"
-        ) from e

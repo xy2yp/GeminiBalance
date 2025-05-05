@@ -39,7 +39,7 @@ class EmbeddingService:
             client = openai.OpenAI(api_key=api_key, base_url=settings.BASE_URL)
             response = client.embeddings.create(input=input_text, model=model)
             is_success = True
-            status_code = 200 # Assume 200 OK on success
+            status_code = 200
             return response
         except APIStatusError as e:
             is_success = False

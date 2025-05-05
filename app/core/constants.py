@@ -40,3 +40,40 @@ DEFAULT_STREAM_CHUNK_SIZE = 5
 # 正则表达式模式
 IMAGE_URL_PATTERN = r'!\[(.*?)\]\((.*?)\)'
 DATA_URL_PATTERN = r'data:([^;]+);base64,(.+)'
+
+# Audio/Video Settings
+SUPPORTED_AUDIO_FORMATS = ["wav", "mp3", "flac", "ogg"]
+SUPPORTED_VIDEO_FORMATS = ["mp4", "mov", "avi", "webm"]
+MAX_AUDIO_SIZE_BYTES = 50 * 1024 * 1024  # Example: 50MB limit for Base64 payload
+MAX_VIDEO_SIZE_BYTES = 200 * 1024 * 1024 # Example: 200MB limit
+
+# Optional: Define MIME type mappings if needed, or handle directly in converter
+AUDIO_FORMAT_TO_MIMETYPE = {
+    "wav": "audio/wav",
+    "mp3": "audio/mpeg",
+    "flac": "audio/flac",
+    "ogg": "audio/ogg",
+}
+
+VIDEO_FORMAT_TO_MIMETYPE = {
+    "mp4": "video/mp4",
+    "mov": "video/quicktime",
+    "avi": "video/x-msvideo",
+    "webm": "video/webm",
+}
+
+GEMINI_2_FLASH_EXP_SAFETY_SETTINGS = [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "OFF"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "OFF"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "OFF"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "OFF"},
+            {"category": "HARM_CATEGORY_CIVIC_INTEGRITY", "threshold": "OFF"},
+        ]
+
+DEFAULT_SAFETY_SETTINGS = [
+        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "OFF"},
+        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "OFF"},
+        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "OFF"},
+        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "OFF"},
+        {"category": "HARM_CATEGORY_CIVIC_INTEGRITY", "threshold": "BLOCK_NONE"},
+    ]
