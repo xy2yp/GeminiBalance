@@ -144,6 +144,7 @@ app/
 | :--------------------------- | :------------------------------------------------------- | :---------------------------------------------------- |
 | **数据库配置**               |                                                          |                                                       |
 | `MYSQL_HOST`                 | 必填，MySQL 数据库主机地址                               | `localhost`                                           |
+| `MYSQL_SOCKET`               | 可选，MySQL 数据库 socket 地址                             | `/var/run/mysqld/mysqld.sock`                          |
 | `MYSQL_PORT`                 | 必填，MySQL 数据库端口                                   | `3306`                                                |
 | `MYSQL_USER`                 | 必填，MySQL 数据库用户名                                 | `your_db_user`                                        |
 | `MYSQL_PASSWORD`             | 必填，MySQL 数据库密码                                   | `your_db_password`                                    |
@@ -151,7 +152,7 @@ app/
 | **API 相关配置**             |                                                          |                                                       |
 | `API_KEYS`                   | 必填，Gemini API 密钥列表，用于负载均衡                        | `["your-gemini-api-key-1", "your-gemini-api-key-2"]`  |
 | `ALLOWED_TOKENS`             | 必填，允许访问的 Token 列表                                    | `["your-access-token-1", "your-access-token-2"]`      |
-| `AUTH_TOKEN`                 | 可选，超级管理员token，具有所有权限，不填默认使用 ALLOWED_TOKENS 的第一个 | `""`                                                  |
+| `AUTH_TOKEN`                 | 可选，超级管理员token，具有所有权限，不填默认使用 ALLOWED_TOKENS 的第一个 | `sk-123456`                                                  |
 | `TEST_MODEL`                 | 可选，用于测试密钥是否可用的模型名                             | `gemini-1.5-flash`                                    |
 | `IMAGE_MODELS`               | 可选，支持绘图功能的模型列表                                   | `["gemini-2.0-flash-exp"]`                            |
 | `SEARCH_MODELS`              | 可选，支持搜索功能的模型列表                                   | `["gemini-2.0-flash-exp"]`                            |
@@ -169,6 +170,7 @@ app/
 | `TIME_OUT`                   | 可选，请求超时时间 (秒)                                        | `300`                                                 |
 | `PROXIES`                    | 可选，代理服务器列表 (例如 `http://user:pass@host:port`, `socks5://host:port`) | `[]`                                                  |
 | `LOG_LEVEL`                  | 可选，日志级别，例如 DEBUG, INFO, WARNING, ERROR, CRITICAL     | `INFO`                                                |
+| `SAFETY_SETTINGS`            | 可选，安全设置 (JSON 字符串格式)，用于配置内容安全阈值。示例值可能需要根据实际模型支持情况调整。 | `[{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "OFF"}, {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "OFF"}, {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "OFF"}, {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "OFF"}, {"category": "HARM_CATEGORY_CIVIC_INTEGRITY", "threshold": "BLOCK_NONE"}]` |
 | **图像生成相关**             |                                                          |                                                       |
 | `PAID_KEY`                   | 可选，付费版API Key，用于图片生成等高级功能                    | `your-paid-api-key`                                   |
 | `CREATE_IMAGE_MODEL`         | 可选，图片生成模型                                             | `imagen-3.0-generate-002`                             |

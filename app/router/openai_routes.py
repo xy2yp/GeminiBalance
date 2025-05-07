@@ -59,7 +59,7 @@ async def list_models(
 
 @router.post("/v1/chat/completions")
 @router.post("/hf/v1/chat/completions")
-@RetryHandler(max_retries=settings.MAX_RETRIES, key_arg="api_key")
+@RetryHandler(key_arg="api_key")
 async def chat_completion(
     request: ChatRequest,
     _=Depends(security_service.verify_authorization),

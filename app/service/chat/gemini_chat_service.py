@@ -90,8 +90,8 @@ def _build_payload(model: str, request: GeminiRequest) -> Dict[str, Any]:
         "contents": request_dict.get("contents", []),
         "tools": _build_tools(model, request_dict),
         "safetySettings": _get_safety_settings(model),
-        "generationConfig": request_dict.get("generationConfig", {}),
-        "systemInstruction": request_dict.get("systemInstruction", ""),
+        "generationConfig": request_dict.get("generationConfig"),
+        "systemInstruction": request_dict.get("systemInstruction"),
     }
 
     if model.endswith("-image") or model.endswith("-image-generation"):

@@ -204,10 +204,11 @@ class OpenAIChatService:
         response = None
         try:
             response = await self.api_client.generate_content(payload, model, api_key)
+            usage_metadata = response.get("usageMetadata", {})
             is_success = True
             status_code = 200
             return self.response_handler.handle_response(
-                response, model, stream=False, finish_reason="stop"
+                response, model, stream=False, finish_reason="stop", usage_metadata=usage_metadata
             )
         except Exception as e:
             is_success = False

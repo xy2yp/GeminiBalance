@@ -29,7 +29,7 @@ class GeminiResponseHandler(ResponseHandler):
         self.thinking_status = False
 
     def handle_response(
-        self, response: Dict[str, Any], model: str, stream: bool = False
+        self, response: Dict[str, Any], model: str, stream: bool = False, usage_metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         if stream:
             return _handle_gemini_stream_response(response, model, stream)
@@ -59,7 +59,7 @@ def _handle_openai_stream_response(
 
 
 def _handle_openai_normal_response(
-    response: Dict[str, Any], model: str, finish_reason: str
+    response: Dict[str, Any], model: str, finish_reason: str, usage_metadata: Optional[Dict[str, Any]]
 ) -> Dict[str, Any]:
     text, tool_calls = _extract_result(
         response, model, stream=False, gemini_format=False
@@ -80,7 +80,7 @@ def _handle_openai_normal_response(
                 "finish_reason": finish_reason,
             }
         ],
-        "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        "usage": {"prompt_tokens": usage_metadata.get("promptTokenCount", 0), "completion_tokens": usage_metadata.get("candidatesTokenCount",0), "total_tokens": usage_metadata.get("totalTokenCount", 0)},
     }
 
 
@@ -98,10 +98,11 @@ class OpenAIResponseHandler(ResponseHandler):
         model: str,
         stream: bool = False,
         finish_reason: str = None,
+        usage_metadata: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         if stream:
             return _handle_openai_stream_response(response, model, finish_reason)
-        return _handle_openai_normal_response(response, model, finish_reason)
+        return _handle_openai_normal_response(response, model, finish_reason, usage_metadata)
 
     def handle_image_chat_response(
         self, image_str: str, model: str, stream=False, finish_reason="stop"

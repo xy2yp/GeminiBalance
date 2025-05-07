@@ -99,7 +99,7 @@ async def list_models(
 
 @router.post("/models/{model_name}:generateContent")
 @router_v1beta.post("/models/{model_name}:generateContent")
-@RetryHandler(max_retries=settings.MAX_RETRIES, key_arg="api_key")
+@RetryHandler(key_arg="api_key")
 async def generate_content(
     model_name: str,
     request: GeminiRequest,
@@ -128,7 +128,7 @@ async def generate_content(
 
 @router.post("/models/{model_name}:streamGenerateContent")
 @router_v1beta.post("/models/{model_name}:streamGenerateContent")
-@RetryHandler(max_retries=settings.MAX_RETRIES, key_arg="api_key")
+@RetryHandler(key_arg="api_key")
 async def stream_generate_content(
     model_name: str,
     request: GeminiRequest,
@@ -155,6 +155,7 @@ async def stream_generate_content(
         )
         # 注意：流本身的错误需要在服务层或流迭代中处理，这里只返回流响应
         return StreamingResponse(response_stream, media_type="text/event-stream")
+
 
 @router.post("/reset-all-fail-counts")
 async def reset_all_key_fail_counts(key_type: str = None, key_manager: KeyManager = Depends(get_key_manager)):
@@ -250,7 +251,6 @@ async def reset_selected_key_fail_counts(
         return JSONResponse({"success": False, "message": f"批量重置处理失败: {str(e)}"}, status_code=500)
 
 
-
 @router.post("/reset-fail-count/{api_key}")
 async def reset_key_fail_count(api_key: str, key_manager: KeyManager = Depends(get_key_manager)):
     """重置指定Gemini API密钥的失败计数"""
@@ -266,6 +266,7 @@ async def reset_key_fail_count(api_key: str, key_manager: KeyManager = Depends(g
         logger.error(f"Failed to reset key failure count: {str(e)}")
         return JSONResponse({"success": False, "message": f"重置失败: {str(e)}"}, status_code=500)
 
+
 @router.post("/verify-key/{api_key}")
 async def verify_key(api_key: str, chat_service: GeminiChatService = Depends(get_chat_service), key_manager: KeyManager = Depends(get_key_manager)):
     """验证Gemini API密钥的有效性"""
@@ -278,9 +279,10 @@ async def verify_key(api_key: str, chat_service: GeminiChatService = Depends(get
             contents=[
                 GeminiContent(
                     role="user",
-                    parts=[{"text": "hi"}]
+                    parts=[{"text": "hi"}],
                 )
-            ]
+            ],
+            generation_config={"temperature": 0.7, "top_p": 1.0, "max_output_tokens": 10}
         )
         
         response = await chat_service.generate_content(

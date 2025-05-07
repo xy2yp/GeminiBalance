@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     MYSQL_USER: str
     MYSQL_PASSWORD: str
     MYSQL_DATABASE: str
+    MYSQL_SOCKET: str = ""
     
     # API相关配置
     API_KEYS: List[str]
