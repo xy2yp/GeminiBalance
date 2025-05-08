@@ -18,7 +18,6 @@ from app.service.openai_compatiable.openai_compatiable_service import OpenAIComp
 router = APIRouter()
 logger = get_openai_compatible_logger()
 
-# 初始化服务
 security_service = SecurityService()
 
 async def get_key_manager():
@@ -62,29 +61,23 @@ async def chat_completion(
 ):
     """处理聊天补全请求，支持流式响应和特定模型切换。"""
     operation_name = "chat_completion"
-    # 检查是否为图像生成相关的聊天模型，如果是，则使用付费密钥
     is_image_chat = request.model == f"{settings.CREATE_IMAGE_MODEL}-chat"
-    current_api_key = api_key # 保存原始key（可能是普通key）
+    current_api_key = api_key
     if is_image_chat:
-        current_api_key = await key_manager.get_paid_key() # 获取付费密钥
+        current_api_key = await key_manager.get_paid_key()
 
     async with handle_route_errors(logger, operation_name):
         logger.info(f"Handling chat completion request for model: {request.model}")
         logger.debug(f"Request: \n{request.model_dump_json(indent=2)}")
-        logger.info(f"Using API key: {current_api_key}") # 使用 current_api_key
+        logger.info(f"Using API key: {current_api_key}")
 
         if is_image_chat:
-            # 图像生成聊天，调用特定服务，不处理流式
             response = await openai_service.create_image_chat_completion(request, current_api_key)
-            return response # 直接返回结果
+            return response
         else:
-            # 普通聊天补全
             response = await openai_service.create_chat_completion(request, current_api_key)
-            # 处理流式响应
             if request.stream:
-                 # 假设 openai_service.create_chat_completion 在流式时返回异步生成器
                 return StreamingResponse(response, media_type="text/event-stream")
-            # 非流式直接返回结果
             return response
 
 
@@ -98,7 +91,6 @@ async def generate_image(
     operation_name = "generate_image"
     async with handle_route_errors(logger, operation_name):
         logger.info(f"Handling image generation request for prompt: {request.prompt}")
-        # 强制使用配置的模型，确保请求中包含正确的模型信息
         request.model = settings.CREATE_IMAGE_MODEL
         return await openai_service.generate_images(request)
 

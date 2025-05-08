@@ -14,6 +14,7 @@ cryptography # 支持 MySQL 8+ caching_sha2_password 验证
 pymysql
 sqlalchemy
 aiomysql
+aiosqlite
 databases
 python-dotenv
 apscheduler

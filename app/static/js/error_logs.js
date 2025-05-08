@@ -9,24 +9,67 @@ function scrollToBottom() {
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
 }
 
+// API 调用辅助函数
+async function fetchAPI(url, options = {}) {
+    try {
+        const response = await fetch(url, options);
+
+        // Handle cases where response might be empty but still ok (e.g., 204 No Content for DELETE)
+        if (response.status === 204) {
+            return null; // Indicate success with no content
+        }
+
+        let responseData;
+        try {
+            responseData = await response.json();
+        } catch (e) {
+            // Handle non-JSON responses if necessary, or assume error if JSON expected
+            if (!response.ok) {
+                 // If response is not ok and not JSON, use statusText
+                 throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
+            }
+            // If response is ok but not JSON, maybe return raw text or handle differently
+            // For now, let's assume successful non-JSON is not expected or handled later
+            console.warn("Response was not JSON for URL:", url);
+            return await response.text(); // Or handle as needed
+        }
+
+
+        if (!response.ok) {
+            // Prefer error message from API response body if available
+            const message = responseData?.detail || `HTTP error! status: ${response.status} - ${response.statusText}`;
+            throw new Error(message);
+        }
+
+        return responseData; // Return parsed JSON data for successful responses
+
+    } catch (error) {
+        // Catch network errors or errors thrown from above
+        console.error('API Call Failed:', error.message, 'URL:', url, 'Options:', options);
+        // Re-throw the error so the calling function knows the operation failed
+        throw error;
+    }
+}
+
 // Refresh function removed as the buttons are gone.
 // If refresh functionality is needed elsewhere, it can be triggered directly by calling loadErrorLogs().
 
-// 全局变量
-let currentPage = 1;
-let pageSize = 10;
-// let totalPages = 1; // totalPages will be calculated dynamically based on API response if available, or based on fetched data length
-let errorLogs = []; // Store fetched logs for details view
-let currentSort = { // 新增：存储当前排序状态
-    field: 'id', // 默认按 ID 排序
-    order: 'desc' // 默认降序
-};
-let currentSearch = { // Store current search parameters
-    key: '',
-    error: '',
-    errorCode: '', // Added error code search
-    startDate: '',
-    endDate: ''
+// 全局状态管理
+let errorLogState = {
+    currentPage: 1,
+    pageSize: 10,
+    logs: [], // 存储获取的日志
+    sort: {
+        field: 'id', // 默认按 ID 排序
+        order: 'desc' // 默认降序
+    },
+    search: {
+        key: '',
+        error: '',
+        errorCode: '',
+        startDate: '',
+        endDate: ''
+    }
 };
 
 // DOM Elements Cache
@@ -60,73 +103,70 @@ let confirmDeleteBtn; // 新增：确认删除按钮
 let deleteConfirmMessage; // 新增：删除确认消息元素
 let idsToDeleteGlobally = []; // 新增：存储待删除的ID
 
-// 页面加载完成后执行
-document.addEventListener('DOMContentLoaded', function() {
-    // Cache DOM elements
+// Helper functions for initialization
+function cacheDOMElements() {
     pageSizeSelector = document.getElementById('pageSize');
-    // refreshBtn = document.getElementById('refreshBtn'); // Removed
     tableBody = document.getElementById('errorLogsTable');
     paginationElement = document.getElementById('pagination');
     loadingIndicator = document.getElementById('loadingIndicator');
     noDataMessage = document.getElementById('noDataMessage');
     errorMessage = document.getElementById('errorMessage');
     logDetailModal = document.getElementById('logDetailModal');
-    // Get all elements that should close the modal
     modalCloseBtns = document.querySelectorAll('#closeLogDetailModalBtn, #closeModalFooterBtn');
     keySearchInput = document.getElementById('keySearch');
     errorSearchInput = document.getElementById('errorSearch');
-    errorCodeSearchInput = document.getElementById('errorCodeSearch'); // Get error code input
+    errorCodeSearchInput = document.getElementById('errorCodeSearch');
     startDateInput = document.getElementById('startDate');
     endDateInput = document.getElementById('endDate');
     searchBtn = document.getElementById('searchBtn');
     pageInput = document.getElementById('pageInput');
     goToPageBtn = document.getElementById('goToPageBtn');
-    selectAllCheckbox = document.getElementById('selectAllCheckbox'); // 新增
-    copySelectedKeysBtn = document.getElementById('copySelectedKeysBtn'); // 新增
-    deleteSelectedBtn = document.getElementById('deleteSelectedBtn'); // 新增
-    sortByIdHeader = document.getElementById('sortById'); // 新增
+    selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    copySelectedKeysBtn = document.getElementById('copySelectedKeysBtn');
+    deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+    sortByIdHeader = document.getElementById('sortById');
     if (sortByIdHeader) {
-        sortIcon = sortByIdHeader.querySelector('i'); // 新增
+        sortIcon = sortByIdHeader.querySelector('i');
     }
-    selectedCountSpan = document.getElementById('selectedCount'); // 新增
-    deleteConfirmModal = document.getElementById('deleteConfirmModal'); // 新增
-    closeDeleteConfirmModalBtn = document.getElementById('closeDeleteConfirmModalBtn'); // 新增
-    cancelDeleteBtn = document.getElementById('cancelDeleteBtn'); // 新增
-    confirmDeleteBtn = document.getElementById('confirmDeleteBtn'); // 新增
-    deleteConfirmMessage = document.getElementById('deleteConfirmMessage'); // 新增
+    selectedCountSpan = document.getElementById('selectedCount');
+    deleteConfirmModal = document.getElementById('deleteConfirmModal');
+    closeDeleteConfirmModalBtn = document.getElementById('closeDeleteConfirmModalBtn');
+    cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+    confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+    deleteConfirmMessage = document.getElementById('deleteConfirmMessage');
+}
 
-    // Initialize page size selector
+function initializePageSizeControls() {
     if (pageSizeSelector) {
-        pageSizeSelector.value = pageSize;
+        pageSizeSelector.value = errorLogState.pageSize;
         pageSizeSelector.addEventListener('change', function() {
-            pageSize = parseInt(this.value);
-            currentPage = 1; // Reset to first page
+            errorLogState.pageSize = parseInt(this.value);
+            errorLogState.currentPage = 1; // Reset to first page
             loadErrorLogs();
         });
     }
+}
 
-    // Refresh button event listener removed
-
-    // Initialize search button
+function initializeSearchControls() {
     if (searchBtn) {
         searchBtn.addEventListener('click', function() {
-            // Update search parameters from input fields
-            currentSearch.key = keySearchInput ? keySearchInput.value.trim() : '';
-            currentSearch.error = errorSearchInput ? errorSearchInput.value.trim() : '';
-            currentSearch.errorCode = errorCodeSearchInput ? errorCodeSearchInput.value.trim() : ''; // Get error code value
-            currentSearch.startDate = startDateInput ? startDateInput.value : '';
-            currentSearch.endDate = endDateInput ? endDateInput.value : '';
-            currentPage = 1; // Reset to first page on new search
+            errorLogState.search.key = keySearchInput ? keySearchInput.value.trim() : '';
+            errorLogState.search.error = errorSearchInput ? errorSearchInput.value.trim() : '';
+            errorLogState.search.errorCode = errorCodeSearchInput ? errorCodeSearchInput.value.trim() : '';
+            errorLogState.search.startDate = startDateInput ? startDateInput.value : '';
+            errorLogState.search.endDate = endDateInput ? endDateInput.value : '';
+            errorLogState.currentPage = 1; // Reset to first page on new search
             loadErrorLogs();
         });
     }
+}
 
-    // Initialize modal close buttons
+function initializeModalControls() {
+    // Log Detail Modal
     if (logDetailModal && modalCloseBtns) {
         modalCloseBtns.forEach(btn => {
             btn.addEventListener('click', closeLogDetailModal);
         });
-        // Optional: Close modal if clicking outside the content
         logDetailModal.addEventListener('click', function(event) {
             if (event.target === logDetailModal) {
                 closeLogDetailModal();
@@ -134,52 +174,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Initial load of error logs
-    loadErrorLogs();
-
-    // Add event listeners for copy buttons inside the modal and table
-    setupCopyButtons(); // This will now also handle table copy buttons if called after render
-
-    // Add event listeners for bulk selection
-    setupBulkSelectionListeners(); // 新增：设置批量选择监听器
-
-    // 新增：为页码跳转按钮添加事件监听器
-    if (goToPageBtn && pageInput) {
-        goToPageBtn.addEventListener('click', function() {
-            const targetPage = parseInt(pageInput.value);
-            // 需要获取总页数来验证输入
-            // 暂时无法直接获取 totalPages，需要在 updatePagination 中存储或重新计算
-            // 简单的验证：必须是正整数
-            if (!isNaN(targetPage) && targetPage >= 1) {
-                // 理想情况下，应检查 targetPage <= totalPages
-                // 但 totalPages 可能未知，所以暂时只跳转
-                currentPage = targetPage;
-                loadErrorLogs();
-                pageInput.value = ''; // 清空输入框
-            } else {
-                showNotification('请输入有效的页码', 'error', 2000);
-                pageInput.value = ''; // 清空无效输入
-            }
-        });
-        // 允许按 Enter 键跳转
-        pageInput.addEventListener('keypress', function(event) {
-            if (event.key === 'Enter') {
-                goToPageBtn.click(); // 触发按钮点击
-            }
-        });
-    }
-
-    // 新增：为批量删除按钮添加事件监听器
-    if (deleteSelectedBtn) {
-        deleteSelectedBtn.addEventListener('click', handleDeleteSelected);
-    }
-
-    // 新增：为 ID 排序表头添加事件监听器
-    if (sortByIdHeader) {
-        sortByIdHeader.addEventListener('click', handleSortById);
-    }
-
-    // 新增：为删除确认模态框按钮添加事件监听器
+    // Delete Confirm Modal
     if (closeDeleteConfirmModalBtn) {
         closeDeleteConfirmModalBtn.addEventListener('click', hideDeleteConfirmModal);
     }
@@ -189,7 +184,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (confirmDeleteBtn) {
         confirmDeleteBtn.addEventListener('click', handleConfirmDelete);
     }
-    // Optional: Close modal if clicking outside the content
     if (deleteConfirmModal) {
         deleteConfirmModal.addEventListener('click', function(event) {
             if (event.target === deleteConfirmModal) {
@@ -197,6 +191,55 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+}
+
+function initializePaginationJumpControls() {
+    if (goToPageBtn && pageInput) {
+        goToPageBtn.addEventListener('click', function() {
+            const targetPage = parseInt(pageInput.value);
+            if (!isNaN(targetPage) && targetPage >= 1) {
+                errorLogState.currentPage = targetPage;
+                loadErrorLogs();
+                pageInput.value = '';
+            } else {
+                showNotification('请输入有效的页码', 'error', 2000);
+                pageInput.value = '';
+            }
+        });
+        pageInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                goToPageBtn.click();
+            }
+        });
+    }
+}
+
+function initializeActionControls() {
+    if (deleteSelectedBtn) {
+        deleteSelectedBtn.addEventListener('click', handleDeleteSelected);
+    }
+    if (sortByIdHeader) {
+        sortByIdHeader.addEventListener('click', handleSortById);
+    }
+    // Bulk selection listeners are closely related to actions
+    setupBulkSelectionListeners();
+}
+
+// 页面加载完成后执行
+document.addEventListener('DOMContentLoaded', function() {
+    cacheDOMElements();
+    initializePageSizeControls();
+    initializeSearchControls();
+    initializeModalControls();
+    initializePaginationJumpControls();
+    initializeActionControls();
+
+    // Initial load of error logs
+    loadErrorLogs();
+
+    // Add event listeners for copy buttons inside the modal and table
+    // This needs to be called after initial render and potentially after each render if content is dynamic
+    setupCopyButtons();
 });
 
 // 新增：显示删除确认模态框
@@ -265,6 +308,36 @@ function handleCopyResult(buttonElement, success) {
      setTimeout(() => { iconElement.className = originalIcon; }, success ? 2000 : 3000); // Restore original icon class
 }
 
+// 新的内部辅助函数，封装实际的复制操作和反馈
+function _performCopy(text, buttonElement) {
+    let copySuccess = false;
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => {
+            if (buttonElement) {
+                handleCopyResult(buttonElement, true);
+            } else {
+                showNotification('已复制到剪贴板', 'success');
+            }
+        }).catch(err => {
+            console.error('Clipboard API failed, attempting fallback:', err);
+            copySuccess = fallbackCopyTextToClipboard(text);
+            if (buttonElement) {
+                handleCopyResult(buttonElement, copySuccess);
+            } else {
+                showNotification(copySuccess ? '已复制到剪贴板' : '复制失败', copySuccess ? 'success' : 'error');
+            }
+        });
+    } else {
+        console.warn("Clipboard API not available or context insecure. Using fallback copy method.");
+        copySuccess = fallbackCopyTextToClipboard(text);
+        if (buttonElement) {
+            handleCopyResult(buttonElement, copySuccess);
+        } else {
+            showNotification(copySuccess ? '已复制到剪贴板' : '复制失败', copySuccess ? 'success' : 'error');
+        }
+    }
+}
+
 // Function to set up copy button listeners (using modern API with fallback) - Updated to handle table copy buttons
 function setupCopyButtons(containerSelector = 'body') {
     // Find buttons within the specified container (defaults to body)
@@ -306,43 +379,12 @@ function handleCopyButtonClick() {
 
 
     if (textToCopy) {
-        let copySuccess = false;
-        // Try modern clipboard API first (requires HTTPS or localhost)
-        if (navigator.clipboard && window.isSecureContext) {
-            navigator.clipboard.writeText(textToCopy).then(() => {
-                handleCopyResult(button, true); // Use helper for feedback
-            }).catch(err => {
-                console.error('Clipboard API failed, attempting fallback:', err);
-                // Attempt fallback if modern API fails
-                copySuccess = fallbackCopyTextToClipboard(textToCopy);
-                handleCopyResult(button, copySuccess); // Use helper for feedback
-            });
-        } else {
-            // Use fallback if modern API is not available or context is insecure
-            console.warn("Clipboard API not available or context insecure. Using fallback copy method.");
-            copySuccess = fallbackCopyTextToClipboard(textToCopy);
-            handleCopyResult(button, copySuccess); // Use helper for feedback
-        }
+        _performCopy(textToCopy, button); // 使用新的辅助函数
     } else {
         console.warn('No text found to copy for target:', targetId || 'direct text');
         showNotification('没有内容可复制', 'warning');
     }
 } // End of handleCopyButtonClick function
-
-// Function to set up copy button listeners (using modern API with fallback) - Updated to handle table copy buttons
-function setupCopyButtons(containerSelector = 'body') {
-    // Find buttons within the specified container (defaults to body)
-    const container = document.querySelector(containerSelector);
-    if (!container) return;
-
-    const copyButtons = container.querySelectorAll('.copy-btn');
-    copyButtons.forEach(button => {
-        // Remove existing listener to prevent duplicates if called multiple times
-        button.removeEventListener('click', handleCopyButtonClick);
-        // Add the listener
-        button.addEventListener('click', handleCopyButtonClick);
-    });
-}
 
 // 新增：设置批量选择相关的事件监听器
 function setupBulkSelectionListeners() {
@@ -432,30 +474,9 @@ function handleCopySelectedKeys() {
 
    if (keysToCopy.length > 0) {
        const textToCopy = keysToCopy.join('\n'); // 每行一个密钥
-       copyTextToClipboard(textToCopy, copySelectedKeysBtn); // 使用通用复制函数
+       _performCopy(textToCopy, copySelectedKeysBtn); // 使用新的辅助函数
    } else {
        showNotification('没有选中的密钥可复制', 'warning');
-   }
-}
-
-// 新增：通用的文本复制函数（结合现有逻辑）
-function copyTextToClipboard(text, buttonElement = null) {
-   let copySuccess = false;
-   if (navigator.clipboard && window.isSecureContext) {
-       navigator.clipboard.writeText(text).then(() => {
-           if (buttonElement) handleCopyResult(buttonElement, true);
-           else showNotification('已复制到剪贴板', 'success');
-       }).catch(err => {
-           console.error('Clipboard API failed, attempting fallback:', err);
-           copySuccess = fallbackCopyTextToClipboard(text);
-           if (buttonElement) handleCopyResult(buttonElement, copySuccess);
-           else showNotification(copySuccess ? '已复制到剪贴板' : '复制失败', copySuccess ? 'success' : 'error');
-       });
-   } else {
-       console.warn("Clipboard API not available or context insecure. Using fallback copy method.");
-       copySuccess = fallbackCopyTextToClipboard(text);
-       if (buttonElement) handleCopyResult(buttonElement, copySuccess);
-       else showNotification(copySuccess ? '已复制到剪贴板' : '复制失败', copySuccess ? 'success' : 'error');
    }
 }
 
@@ -495,23 +516,17 @@ async function performActualDelete(logIds) {
     const method = 'DELETE';
     const body = isSingleDelete ? null : JSON.stringify({ ids: logIds });
     const headers = isSingleDelete ? {} : { 'Content-Type': 'application/json' };
+    const options = {
+        method: method,
+        headers: headers,
+        body: body, // fetchAPI handles null body correctly
+    };
 
     try {
-        // Rename 'response' to 'deleteResponse' and remove duplicate fetch
-        const deleteResponse = await fetch(url, {
-            method: method,
-            headers: headers,
-            body: body,
-        });
-        // Removed duplicate fetch call below
+        // Use fetchAPI for the delete request
+        await fetchAPI(url, options); // fetchAPI returns null for 204 No Content
 
-        if (!deleteResponse.ok) {
-            let errorData;
-            try { errorData = await deleteResponse.json(); } catch (e) { /* ignore */ }
-            const actionText = isSingleDelete ? `删除该条日志` : `批量删除 ${logIds.length} 条日志`;
-            throw new Error(errorData?.detail || `${actionText}失败: ${deleteResponse.statusText}`);
-        }
-
+        // If fetchAPI doesn't throw, the request was successful
         const successMessage = isSingleDelete ? `成功删除该日志` : `成功删除 ${logIds.length} 条日志`;
         showNotification(successMessage, 'success');
         // 取消全选
@@ -537,18 +552,18 @@ function handleDeleteLogRow(logId) {
 
 // 新增：处理 ID 排序点击的函数
 function handleSortById() {
-    if (currentSort.field === 'id') {
+    if (errorLogState.sort.field === 'id') {
         // 如果当前是按 ID 排序，切换顺序
-        currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc';
+        errorLogState.sort.order = errorLogState.sort.order === 'asc' ? 'desc' : 'asc';
     } else {
         // 如果当前不是按 ID 排序，切换到按 ID 排序，默认为降序
-        currentSort.field = 'id';
-        currentSort.order = 'desc';
+        errorLogState.sort.field = 'id';
+        errorLogState.sort.order = 'desc';
     }
     // 更新图标
     updateSortIcon();
     // 重新加载第一页数据
-    currentPage = 1;
+    errorLogState.currentPage = 1;
     loadErrorLogs();
 }
 
@@ -558,8 +573,8 @@ function updateSortIcon() {
     // 移除所有可能的排序类
     sortIcon.classList.remove('fa-sort', 'fa-sort-up', 'fa-sort-down', 'text-gray-400', 'text-primary-600');
 
-    if (currentSort.field === 'id') {
-        sortIcon.classList.add(currentSort.order === 'asc' ? 'fa-sort-up' : 'fa-sort-down');
+    if (errorLogState.sort.field === 'id') {
+        sortIcon.classList.add(errorLogState.sort.order === 'asc' ? 'fa-sort-up' : 'fa-sort-down');
         sortIcon.classList.add('text-primary-600'); // 高亮显示
     } else {
         // 如果不是按 ID 排序，显示默认图标
@@ -578,56 +593,49 @@ async function loadErrorLogs() {
     showError(false);
     showNoData(false);
 
-    const offset = (currentPage - 1) * pageSize;
+    const offset = (errorLogState.currentPage - 1) * errorLogState.pageSize;
 
     try {
         // Construct the API URL with search and sort parameters
-        let apiUrl = `/api/logs/errors?limit=${pageSize}&offset=${offset}`;
+        let apiUrl = `/api/logs/errors?limit=${errorLogState.pageSize}&offset=${offset}`;
         // 添加排序参数
-        apiUrl += `&sort_by=${currentSort.field}&sort_order=${currentSort.order}`;
+        apiUrl += `&sort_by=${errorLogState.sort.field}&sort_order=${errorLogState.sort.order}`;
 
         // 添加搜索参数
-        if (currentSearch.key) {
-            apiUrl += `&key_search=${encodeURIComponent(currentSearch.key)}`;
+        if (errorLogState.search.key) {
+            apiUrl += `&key_search=${encodeURIComponent(errorLogState.search.key)}`;
         }
-        if (currentSearch.error) {
-            apiUrl += `&error_search=${encodeURIComponent(currentSearch.error)}`;
+        if (errorLogState.search.error) {
+            apiUrl += `&error_search=${encodeURIComponent(errorLogState.search.error)}`;
         }
-        if (currentSearch.errorCode) { // Add error code to API request
-            apiUrl += `&error_code_search=${encodeURIComponent(currentSearch.errorCode)}`;
+        if (errorLogState.search.errorCode) { // Add error code to API request
+            apiUrl += `&error_code_search=${encodeURIComponent(errorLogState.search.errorCode)}`;
         }
-        if (currentSearch.startDate) {
-            apiUrl += `&start_date=${encodeURIComponent(currentSearch.startDate)}`;
+        if (errorLogState.search.startDate) {
+            apiUrl += `&start_date=${encodeURIComponent(errorLogState.search.startDate)}`;
         }
-        if (currentSearch.endDate) {
-            apiUrl += `&end_date=${encodeURIComponent(currentSearch.endDate)}`;
+        if (errorLogState.search.endDate) {
+            apiUrl += `&end_date=${encodeURIComponent(errorLogState.search.endDate)}`;
         }
 
-        const response = await fetch(apiUrl);
-        if (!response.ok) {
-            // Try to get error message from response body
-            let errorData;
-            try {
-                errorData = await response.json();
-            } catch (e) {
-                // Ignore if response is not JSON
-            }
-            throw new Error(errorData?.detail || `网络响应异常: ${response.statusText}`);
-        }
-        const data = await response.json();
+        // Use fetchAPI to get logs
+        const data = await fetchAPI(apiUrl);
+
         // API 现在返回 { logs: [], total: count }
+        // fetchAPI already parsed JSON
         if (data && Array.isArray(data.logs)) {
-            errorLogs = data.logs; // Store the list data (contains error_code)
-            renderErrorLogs(errorLogs);
-            updatePagination(errorLogs.length, data.total || -1);
+            errorLogState.logs = data.logs; // Store the list data (contains error_code)
+            renderErrorLogs(errorLogState.logs);
+            updatePagination(errorLogState.logs.length, data.total || -1); // Use total from response
         } else {
-            throw new Error('无法识别的API响应格式');
+             // Handle unexpected data format even after successful fetch
+             console.error('Unexpected API response format:', data);
+             throw new Error('无法识别的API响应格式');
         }
-
 
         showLoading(false);
 
-        if (errorLogs.length === 0) {
+        if (errorLogState.logs.length === 0) {
             showNoData(true);
         }
     } catch (error) {
@@ -637,6 +645,54 @@ async function loadErrorLogs() {
     }
 }
 
+// Helper function to create HTML for a single log row
+function _createLogRowHtml(log, sequentialId) {
+    // Format date
+    let formattedTime = 'N/A';
+    try {
+        const requestTime = new Date(log.request_time);
+        if (!isNaN(requestTime)) {
+            formattedTime = requestTime.toLocaleString('zh-CN', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+            });
+        }
+    } catch (e) { console.error("Error formatting date:", e); }
+
+    const errorCodeContent = log.error_code || '无';
+
+    const maskKey = (key) => {
+        if (!key || key.length < 8) return key || '无';
+        return `${key.substring(0, 4)}...${key.substring(key.length - 4)}`;
+    };
+    const maskedKey = maskKey(log.gemini_key);
+    const fullKey = log.gemini_key || '';
+
+    return `
+        <td class="text-center px-3 py-3">
+            <input type="checkbox" class="row-checkbox form-checkbox h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" data-key="${fullKey}" data-log-id="${log.id}">
+        </td>
+        <td>${sequentialId}</td>
+        <td class="relative group" title="${fullKey}">
+            ${maskedKey}
+            <button class="copy-btn absolute top-1/2 right-2 transform -translate-y-1/2 bg-gray-200 hover:bg-gray-300 text-gray-600 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-xs" data-copy-text="${fullKey}" title="复制完整密钥">
+                <i class="far fa-copy"></i>
+            </button>
+        </td>
+        <td>${log.error_type || '未知'}</td>
+        <td class="error-code-content" title="${log.error_code || ''}">${errorCodeContent}</td>
+        <td>${log.model_name || '未知'}</td>
+        <td>${formattedTime}</td>
+        <td>
+            <button class="btn-view-details mr-2" data-log-id="${log.id}">
+                <i class="fas fa-eye mr-1"></i>详情
+            </button>
+            <button class="btn-delete-row text-danger-600 hover:text-danger-800" data-log-id="${log.id}" title="删除此日志">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+        </td>
+    `;
+}
 
 // 渲染错误日志表格
 function renderErrorLogs(logs) {
@@ -654,61 +710,12 @@ function renderErrorLogs(logs) {
         return;
     }
 
-    const startIndex = (currentPage - 1) * pageSize; // Calculate starting index for the current page
+    const startIndex = (errorLogState.currentPage - 1) * errorLogState.pageSize;
 
-    logs.forEach((log, index) => { // Add index parameter to forEach
+    logs.forEach((log, index) => {
+        const sequentialId = startIndex + index + 1;
         const row = document.createElement('tr');
-        const sequentialId = startIndex + index + 1; // Calculate sequential ID for the current page
-        // Format date
-        let formattedTime = 'N/A';
-        try {
-            const requestTime = new Date(log.request_time);
-            if (!isNaN(requestTime)) {
-                 formattedTime = requestTime.toLocaleString('zh-CN', {
-                    year: 'numeric', month: '2-digit', day: '2-digit',
-                    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-                });
-            }
-        } catch (e) { console.error("Error formatting date:", e); }
-
-
-        // Display error code instead of truncated log
-        const errorCodeContent = log.error_code || '无';
-
-        // Mask the Gemini key for display in the table
-        const maskKey = (key) => {
-            if (!key || key.length < 8) return key || '无'; // Don't mask short keys or null
-            return `${key.substring(0, 4)}...${key.substring(key.length - 4)}`;
-        };
-        const maskedKey = maskKey(log.gemini_key);
-        const fullKey = log.gemini_key || ''; // Store the full key
-
-        row.innerHTML = `
-            <td class="text-center px-3 py-3"> <!-- Checkbox column -->
-                <input type="checkbox" class="row-checkbox form-checkbox h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" data-key="${fullKey}" data-log-id="${log.id}"> <!-- 添加 data-log-id -->
-            </td>
-            <td>${sequentialId}</td> <!-- 显示从1开始的序号 -->
-            <td class="relative group" title="${fullKey}"> <!-- Added relative/group for button positioning -->
-                ${maskedKey}
-                <!-- Added copy button for the key in the table row -->
-                <button class="copy-btn absolute top-1/2 right-2 transform -translate-y-1/2 bg-gray-200 hover:bg-gray-300 text-gray-600 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-xs" data-copy-text="${log.gemini_key || ''}" title="复制完整密钥">
-                    <i class="far fa-copy"></i>
-                </button>
-            </td>
-            <td>${log.error_type || '未知'}</td>
-            <td class="error-code-content" title="${log.error_code || ''}">${errorCodeContent}</td>
-            <td>${log.model_name || '未知'}</td>
-            <td>${formattedTime}</td>
-            <td>
-                <button class="btn-view-details mr-2" data-log-id="${log.id}"> <!-- 添加 mr-2 -->
-                    <i class="fas fa-eye mr-1"></i>详情
-                </button>
-                <button class="btn-delete-row text-danger-600 hover:text-danger-800" data-log-id="${log.id}" title="删除此日志">
-                    <i class="fas fa-trash-alt"></i>
-                </button>
-            </td>
-        `;
-
+        row.innerHTML = _createLogRowHtml(log, sequentialId);
         tableBody.appendChild(row);
     });
 
@@ -751,15 +758,14 @@ async function showLogDetails(logId) {
     document.body.style.overflow = 'hidden'; // Prevent body scrolling
 
     try {
-        const response = await fetch(`/api/logs/errors/${logId}/details`);
-        if (!response.ok) {
-            let errorData;
-            try {
-                errorData = await response.json();
-            } catch (e) { /* ignore */ }
-            throw new Error(errorData?.detail || `获取日志详情失败: ${response.statusText}`);
+        // Use fetchAPI to get log details
+        const logDetails = await fetchAPI(`/api/logs/errors/${logId}/details`);
+
+        // fetchAPI handles response.ok check and JSON parsing
+        if (!logDetails) {
+             // Handle case where API returns success but no data (if possible)
+             throw new Error('未找到日志详情');
         }
-        const logDetails = await response.json();
 
         // Format date
         let formattedTime = 'N/A';
@@ -839,8 +845,8 @@ function updatePagination(currentItemCount, totalItems) {
     // Calculate total pages only if totalItems is known and valid
     let totalPages = 1;
     if (totalItems >= 0) {
-        totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-    } else if (currentItemCount < pageSize && currentPage === 1) {
+        totalPages = Math.max(1, Math.ceil(totalItems / errorLogState.pageSize));
+    } else if (currentItemCount < errorLogState.pageSize && errorLogState.currentPage === 1) {
         // If less items than page size fetched on page 1, assume it's the only page
         totalPages = 1;
     } else {
@@ -848,15 +854,15 @@ function updatePagination(currentItemCount, totalItems) {
         // We can show Prev/Next based on current page and if items were returned
         console.warn("Total item count unknown, pagination will be limited.");
         // Basic Prev/Next for unknown total
-        addPaginationLink(paginationElement, '&laquo;', currentPage > 1, () => { currentPage--; loadErrorLogs(); });
-        addPaginationLink(paginationElement, currentPage.toString(), true, null, true); // Current page number (non-clickable)
-        addPaginationLink(paginationElement, '&raquo;', currentItemCount === pageSize, () => { currentPage++; loadErrorLogs(); }); // Next enabled if full page was returned
+        addPaginationLink(paginationElement, '&laquo;', errorLogState.currentPage > 1, () => { errorLogState.currentPage--; loadErrorLogs(); });
+        addPaginationLink(paginationElement, errorLogState.currentPage.toString(), true, null, true); // Current page number (non-clickable)
+        addPaginationLink(paginationElement, '&raquo;', currentItemCount === errorLogState.pageSize, () => { errorLogState.currentPage++; loadErrorLogs(); }); // Next enabled if full page was returned
         return; // Exit here for limited pagination
     }
 
 
     const maxPagesToShow = 5; // Max number of page links to show
-    let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+    let startPage = Math.max(1, errorLogState.currentPage - Math.floor(maxPagesToShow / 2));
     let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
 
     // Adjust startPage if endPage reaches the limit first
@@ -866,11 +872,11 @@ function updatePagination(currentItemCount, totalItems) {
 
 
     // Previous Button
-    addPaginationLink(paginationElement, '&laquo;', currentPage > 1, () => { currentPage--; loadErrorLogs(); });
+    addPaginationLink(paginationElement, '&laquo;', errorLogState.currentPage > 1, () => { errorLogState.currentPage--; loadErrorLogs(); });
 
     // First Page Button
     if (startPage > 1) {
-        addPaginationLink(paginationElement, '1', true, () => { currentPage = 1; loadErrorLogs(); });
+        addPaginationLink(paginationElement, '1', true, () => { errorLogState.currentPage = 1; loadErrorLogs(); });
         if (startPage > 2) {
             addPaginationLink(paginationElement, '...', false); // Ellipsis
         }
@@ -878,7 +884,7 @@ function updatePagination(currentItemCount, totalItems) {
 
     // Page Number Buttons
     for (let i = startPage; i <= endPage; i++) {
-        addPaginationLink(paginationElement, i.toString(), true, () => { currentPage = i; loadErrorLogs(); }, i === currentPage);
+        addPaginationLink(paginationElement, i.toString(), true, () => { errorLogState.currentPage = i; loadErrorLogs(); }, i === errorLogState.currentPage);
     }
 
      // Last Page Button
@@ -886,12 +892,12 @@ function updatePagination(currentItemCount, totalItems) {
         if (endPage < totalPages - 1) {
              addPaginationLink(paginationElement, '...', false); // Ellipsis
         }
-        addPaginationLink(paginationElement, totalPages.toString(), true, () => { currentPage = totalPages; loadErrorLogs(); });
+        addPaginationLink(paginationElement, totalPages.toString(), true, () => { errorLogState.currentPage = totalPages; loadErrorLogs(); });
     }
 
 
     // Next Button
-    addPaginationLink(paginationElement, '&raquo;', currentPage < totalPages, () => { currentPage++; loadErrorLogs(); });
+    addPaginationLink(paginationElement, '&raquo;', errorLogState.currentPage < totalPages, () => { errorLogState.currentPage++; loadErrorLogs(); });
 }
 
 // Helper function to add pagination links

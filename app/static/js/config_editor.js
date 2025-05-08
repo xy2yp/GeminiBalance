@@ -1,1301 +1,1718 @@
-// 将需要在外部函数访问的 DOM 元素移到外部
-const safetySettingsContainer = document.getElementById('SAFETY_SETTINGS_container');
-const thinkingModelsContainer = document.getElementById('THINKING_MODELS_container');
+// Constants
+const SENSITIVE_INPUT_CLASS = "sensitive-input";
+const ARRAY_ITEM_CLASS = "array-item";
+const ARRAY_INPUT_CLASS = "array-input";
+const MAP_ITEM_CLASS = "map-item";
+const MAP_KEY_INPUT_CLASS = "map-key-input";
+const MAP_VALUE_INPUT_CLASS = "map-value-input";
+const SAFETY_SETTING_ITEM_CLASS = "safety-setting-item";
+const SHOW_CLASS = "show"; // For modals
+const API_KEY_REGEX = /AIzaSy\S{33}/g;
+const PROXY_REGEX =
+  /(?:https?|socks5):\/\/(?:[^:@\/]+(?::[^@\/]+)?@)?(?:[^:\/\s]+)(?::\d+)?/g;
+const MASKED_VALUE = "••••••••";
 
-document.addEventListener('DOMContentLoaded', function() {
-    // 初始化配置
-    initConfig();
+// DOM Elements - Global Scope for frequently accessed elements
+const safetySettingsContainer = document.getElementById(
+  "SAFETY_SETTINGS_container"
+);
+const thinkingModelsContainer = document.getElementById(
+  "THINKING_MODELS_container"
+);
+const apiKeyModal = document.getElementById("apiKeyModal");
+const apiKeyBulkInput = document.getElementById("apiKeyBulkInput");
+const apiKeySearchInput = document.getElementById("apiKeySearchInput");
+const bulkDeleteApiKeyModal = document.getElementById("bulkDeleteApiKeyModal");
+const bulkDeleteApiKeyInput = document.getElementById("bulkDeleteApiKeyInput");
+const proxyModal = document.getElementById("proxyModal");
+const proxyBulkInput = document.getElementById("proxyBulkInput");
+const bulkDeleteProxyModal = document.getElementById("bulkDeleteProxyModal");
+const bulkDeleteProxyInput = document.getElementById("bulkDeleteProxyInput");
+const resetConfirmModal = document.getElementById("resetConfirmModal");
+const configForm = document.getElementById("configForm"); // Added for frequent use
 
-    // 标签切换
-    const tabButtons = document.querySelectorAll('.tab-btn');
-    tabButtons.forEach(button => {
-        button.addEventListener('click', function(e) {
-            // 防止事件冒泡
-            e.stopPropagation();
-            const tabId = this.getAttribute('data-tab');
-            switchTab(tabId);
-        });
-    });
-
-    // 上传提供商切换
-    const uploadProviderSelect = document.getElementById('UPLOAD_PROVIDER');
-    if (uploadProviderSelect) {
-        uploadProviderSelect.addEventListener('change', function() {
-            toggleProviderConfig(this.value);
-        });
-    }
-
-    // 切换按钮事件
-    const toggleSwitches = document.querySelectorAll('.toggle-switch');
-    toggleSwitches.forEach(toggleSwitch => {
-        toggleSwitch.addEventListener('click', function(e) {
-            // 防止事件冒泡
-            e.stopPropagation();
-            const checkbox = this.querySelector('input[type="checkbox"]');
-            if (checkbox) {
-                checkbox.checked = !checkbox.checked;
-            }
-        });
-    });
-
-    // 保存按钮
-    const saveBtn = document.getElementById('saveBtn');
-    if (saveBtn) {
-        saveBtn.addEventListener('click', saveConfig);
-    }
-
-    // 重置按钮
-    const resetBtn = document.getElementById('resetBtn');
-    if (resetBtn) {
-        resetBtn.addEventListener('click', resetConfig);
-    }
-
-    // 滚动按钮
-    window.addEventListener('scroll', toggleScrollButtons);
-
-    // --- 新增：API Key 模态框和搜索相关 ---
-    const apiKeyModal = document.getElementById('apiKeyModal');
-    const addApiKeyBtn = document.getElementById('addApiKeyBtn');
-    const closeApiKeyModalBtn = document.getElementById('closeApiKeyModalBtn');
-    const cancelAddApiKeyBtn = document.getElementById('cancelAddApiKeyBtn');
-    const confirmAddApiKeyBtn = document.getElementById('confirmAddApiKeyBtn');
-    const apiKeyBulkInput = document.getElementById('apiKeyBulkInput');
-    const apiKeySearchInput = document.getElementById('apiKeySearchInput');
-    const bulkDeleteApiKeyBtn = document.getElementById('bulkDeleteApiKeyBtn'); // 新增
-    const bulkDeleteApiKeyModal = document.getElementById('bulkDeleteApiKeyModal'); // 新增
-    const closeBulkDeleteModalBtn = document.getElementById('closeBulkDeleteModalBtn'); // 新增
-    const cancelBulkDeleteApiKeyBtn = document.getElementById('cancelBulkDeleteApiKeyBtn'); // 新增
-    const confirmBulkDeleteApiKeyBtn = document.getElementById('confirmBulkDeleteApiKeyBtn'); // 新增
-    const bulkDeleteApiKeyInput = document.getElementById('bulkDeleteApiKeyInput'); // 新增
- 
-    // --- 新增：Proxy 模态框相关 ---
-    const proxyModal = document.getElementById('proxyModal');
-    const addProxyBtn = document.getElementById('addProxyBtn'); // Changed from bulkAddProxyBtn
-    const closeProxyModalBtn = document.getElementById('closeProxyModalBtn');
-    const cancelAddProxyBtn = document.getElementById('cancelAddProxyBtn');
-    const confirmAddProxyBtn = document.getElementById('confirmAddProxyBtn');
-    const proxyBulkInput = document.getElementById('proxyBulkInput');
-    const bulkDeleteProxyBtn = document.getElementById('bulkDeleteProxyBtn'); // 新增
-    const bulkDeleteProxyModal = document.getElementById('bulkDeleteProxyModal'); // 新增
-    const closeBulkDeleteProxyModalBtn = document.getElementById('closeBulkDeleteProxyModalBtn'); // 新增
-    const cancelBulkDeleteProxyBtn = document.getElementById('cancelBulkDeleteProxyBtn'); // 新增
-    const confirmBulkDeleteProxyBtn = document.getElementById('confirmBulkDeleteProxyBtn'); // 新增
-    const bulkDeleteProxyInput = document.getElementById('bulkDeleteProxyInput'); // 新增
-    // --- 结束：Proxy 模态框相关 ---
- 
-    // --- 新增：重置确认模态框相关 ---
-    const resetConfirmModal = document.getElementById('resetConfirmModal');
-    const closeResetModalBtn = document.getElementById('closeResetModalBtn');
-    const cancelResetBtn = document.getElementById('cancelResetBtn');
-    const confirmResetBtn = document.getElementById('confirmResetBtn');
-    // --- 结束：新增 ---
-    // const safetySettingsContainer = document.getElementById('SAFETY_SETTINGS_container'); // Moved outside
-
-
-    // 打开模态框
-    if (addApiKeyBtn) {
-        addApiKeyBtn.addEventListener('click', () => {
-            if (apiKeyModal) {
-                apiKeyModal.classList.add('show');
-            }
-            if (apiKeyBulkInput) apiKeyBulkInput.value = ''; // 清空输入框
-        });
-    }
-
-    // 关闭模态框 (X 按钮)
-    if (closeApiKeyModalBtn) {
-        closeApiKeyModalBtn.addEventListener('click', () => {
-            if (apiKeyModal) {
-                apiKeyModal.classList.remove('show');
-            }
-        });
-    }
-
-    // 关闭模态框 (取消按钮)
-    if (cancelAddApiKeyBtn) {
-        cancelAddApiKeyBtn.addEventListener('click', () => {
-            if (apiKeyModal) {
-                apiKeyModal.classList.remove('show');
-            }
-        });
-    }
-
-    // 点击模态框外部关闭 (处理两个模态框)
-    window.addEventListener('click', (event) => {
-        if (event.target == apiKeyModal) {
-            apiKeyModal.classList.remove('show');
-        }
-        if (event.target == resetConfirmModal) {
-            resetConfirmModal.classList.remove('show');
-        }
-        if (event.target == bulkDeleteApiKeyModal) { // 新增对批量删除模态框的处理
-            bulkDeleteApiKeyModal.classList.remove('show');
-        }
-        if (event.target == proxyModal) { // 新增对代理模态框的处理
-            proxyModal.classList.remove('show');
-        }
-        if (event.target == bulkDeleteProxyModal) { // 新增对批量删除代理模态框的处理
-            bulkDeleteProxyModal.classList.remove('show');
-        }
-    });
- 
-    // 确认添加 API Key
-    if (confirmAddApiKeyBtn) {
-        confirmAddApiKeyBtn.addEventListener('click', handleBulkAddApiKeys);
-    }
-
-    // API Key 搜索 (稍后实现具体逻辑)
-    if (apiKeySearchInput) {
-        apiKeySearchInput.addEventListener('input', handleApiKeySearch);
-    }
-
-    // --- 新增：批量删除 API Key 相关事件 ---
-    // 打开批量删除模态框
-    if (bulkDeleteApiKeyBtn) {
-        bulkDeleteApiKeyBtn.addEventListener('click', () => {
-            if (bulkDeleteApiKeyModal) {
-                bulkDeleteApiKeyModal.classList.add('show');
-            }
-            if (bulkDeleteApiKeyInput) bulkDeleteApiKeyInput.value = ''; // 清空输入框
-        });
-    }
-
-    // 关闭批量删除模态框 (X 按钮)
-    if (closeBulkDeleteModalBtn) {
-        closeBulkDeleteModalBtn.addEventListener('click', () => {
-            if (bulkDeleteApiKeyModal) {
-                bulkDeleteApiKeyModal.classList.remove('show');
-            }
-        });
-    }
-
-    // 关闭批量删除模态框 (取消按钮)
-    if (cancelBulkDeleteApiKeyBtn) {
-        cancelBulkDeleteApiKeyBtn.addEventListener('click', () => {
-            if (bulkDeleteApiKeyModal) {
-                bulkDeleteApiKeyModal.classList.remove('show');
-            }
-        });
-    }
-
-    // 确认批量删除 API Key
-    if (confirmBulkDeleteApiKeyBtn) {
-        confirmBulkDeleteApiKeyBtn.addEventListener('click', handleBulkDeleteApiKeys);
-    }
-    // --- 结束：批量删除 API Key 相关 ---
-    // --- 结束：API Key 相关 ---
- 
-    // --- 新增：Proxy 模态框事件 ---
-    // 打开模态框 (Changed event listener to addProxyBtn)
-    if (addProxyBtn) {
-        addProxyBtn.addEventListener('click', () => {
-            if (proxyModal) {
-                proxyModal.classList.add('show');
-            }
-            if (proxyBulkInput) proxyBulkInput.value = ''; // 清空输入框
-        });
-    }
- 
-    // 关闭模态框 (X 按钮)
-    if (closeProxyModalBtn) {
-        closeProxyModalBtn.addEventListener('click', () => {
-            if (proxyModal) {
-                proxyModal.classList.remove('show');
-            }
-        });
-    }
- 
-    // 关闭模态框 (取消按钮)
-    if (cancelAddProxyBtn) {
-        cancelAddProxyBtn.addEventListener('click', () => {
-            if (proxyModal) {
-                proxyModal.classList.remove('show');
-            }
-        });
-    }
- 
-    // 确认添加 Proxy
-    if (confirmAddProxyBtn) {
-        confirmAddProxyBtn.addEventListener('click', handleBulkAddProxies);
-    }
-    // --- 结束：Proxy 模态框事件 ---
-
-    // --- 新增：批量删除 Proxy 相关事件 ---
-    // 打开批量删除模态框
-    if (bulkDeleteProxyBtn) {
-        bulkDeleteProxyBtn.addEventListener('click', () => {
-            if (bulkDeleteProxyModal) {
-                bulkDeleteProxyModal.classList.add('show');
-            }
-            if (bulkDeleteProxyInput) bulkDeleteProxyInput.value = ''; // 清空输入框
-        });
-    }
-
-    // 关闭批量删除模态框 (X 按钮)
-    if (closeBulkDeleteProxyModalBtn) {
-        closeBulkDeleteProxyModalBtn.addEventListener('click', () => {
-            if (bulkDeleteProxyModal) {
-                bulkDeleteProxyModal.classList.remove('show');
-            }
-        });
-    }
-
-    // 关闭批量删除模态框 (取消按钮)
-    if (cancelBulkDeleteProxyBtn) {
-        cancelBulkDeleteProxyBtn.addEventListener('click', () => {
-            if (bulkDeleteProxyModal) {
-                bulkDeleteProxyModal.classList.remove('show');
-            }
-        });
-    }
-
-    // 确认批量删除 Proxy
-    if (confirmBulkDeleteProxyBtn) {
-        confirmBulkDeleteProxyBtn.addEventListener('click', handleBulkDeleteProxies);
-    }
-    // --- 结束：批量删除 Proxy 相关 ---
- 
-    // --- 新增：重置确认模态框事件监听 (移到 DOMContentLoaded 内部) ---
-    if (closeResetModalBtn) {
-        closeResetModalBtn.addEventListener('click', () => {
-            if (resetConfirmModal) {
-                resetConfirmModal.classList.remove('show');
-            }
-        });
-    }
-    if (cancelResetBtn) {
-        cancelResetBtn.addEventListener('click', () => {
-            if (resetConfirmModal) {
-                resetConfirmModal.classList.remove('show');
-            }
-        });
-    }
-    if (confirmResetBtn) {
-        // 调用之前定义的 executeReset 函数
-        confirmResetBtn.addEventListener('click', () => {
-             if (resetConfirmModal) {
-                 resetConfirmModal.classList.remove('show'); // 关闭模态框
-             }
-             executeReset(); // 执行重置逻辑
-        });
-    }
-    // --- 结束：重置相关 ---
-
-    // 移除了静态生成令牌按钮的事件监听器，现在按钮是动态生成的
-
-    // 认证令牌生成按钮事件绑定
-    const generateAuthTokenBtn = document.getElementById('generateAuthTokenBtn');
-    const authTokenInput = document.getElementById('AUTH_TOKEN');
-    if (generateAuthTokenBtn && authTokenInput) {
-        generateAuthTokenBtn.addEventListener('click', function() {
-            const newToken = generateRandomToken();
-            authTokenInput.value = newToken;
-            showNotification('已生成新认证令牌', 'success');
-        });
-    }
-
-    // --- 修改：思考模型预算映射不再需要手动添加按钮 ---
-    // const addBudgetMapItemBtn = document.getElementById('addBudgetMapItemBtn');
-    // if (addBudgetMapItemBtn) {
-    //     addBudgetMapItemBtn.addEventListener('click', addBudgetMapItem);
-    // }
-    // --- 结束：思考模型预算映射相关 ---
-
-    // 添加事件委托，处理动态添加的 THINKING_MODELS 输入框的 input 事件
-    // const thinkingModelsContainer = document.getElementById('THINKING_MODELS_container'); // Moved outside
-    if (thinkingModelsContainer) {
-        thinkingModelsContainer.addEventListener('input', function(event) {
-            if (event.target && event.target.classList.contains('array-input') && event.target.closest('.array-item[data-model-id]')) {
-                const modelInput = event.target;
-                const modelId = modelInput.closest('.array-item').getAttribute('data-model-id');
-                const budgetKeyInput = document.querySelector(`.map-key-input[data-model-id="${modelId}"]`);
-                if (budgetKeyInput) {
-                    budgetKeyInput.value = modelInput.value;
-                }
-            }
-        });
-    }
-
-    // --- 新增：安全设置相关 ---
-    const addSafetySettingBtn = document.getElementById('addSafetySettingBtn');
-    if (addSafetySettingBtn) {
-        addSafetySettingBtn.addEventListener('click', () => addSafetySettingItem());
-    }
-    // --- 结束：安全设置相关 ---
-
-}); // <-- DOMContentLoaded 结束括号
-
-// --- 新增：生成唯一ID ---
-function generateUUID() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-    });
-}
-// --- 结束：生成唯一ID ---
-
-
-// 初始化配置
-async function initConfig() {
-    try {
-        showNotification('正在加载配置...', 'info');
-        const response = await fetch('/api/config');
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const config = await response.json();
-
-        // 确保数组字段有默认值
-        if (!config.API_KEYS || !Array.isArray(config.API_KEYS) || config.API_KEYS.length === 0) {
-            config.API_KEYS = ['请在此处输入 API 密钥'];
-        }
-
-        if (!config.ALLOWED_TOKENS || !Array.isArray(config.ALLOWED_TOKENS) || config.ALLOWED_TOKENS.length === 0) {
-            config.ALLOWED_TOKENS = [''];
-        }
-
-        if (!config.IMAGE_MODELS || !Array.isArray(config.IMAGE_MODELS) || config.IMAGE_MODELS.length === 0) {
-            config.IMAGE_MODELS = ['gemini-1.5-pro-latest'];
-        }
-
-        if (!config.SEARCH_MODELS || !Array.isArray(config.SEARCH_MODELS) || config.SEARCH_MODELS.length === 0) {
-            config.SEARCH_MODELS = ['gemini-1.5-flash-latest'];
-        }
-
-        if (!config.FILTERED_MODELS || !Array.isArray(config.FILTERED_MODELS) || config.FILTERED_MODELS.length === 0) {
-            config.FILTERED_MODELS = ['gemini-1.0-pro-latest'];
-        }
-        // --- 新增：处理 PROXIES 默认值 ---
-        if (!config.PROXIES || !Array.isArray(config.PROXIES)) {
-            config.PROXIES = []; // 默认为空数组
-        }
-        // --- 新增：处理新字段的默认值 ---
-        if (!config.THINKING_MODELS || !Array.isArray(config.THINKING_MODELS)) {
-            config.THINKING_MODELS = []; // 默认为空数组
-        }
-        if (!config.THINKING_BUDGET_MAP || typeof config.THINKING_BUDGET_MAP !== 'object' || config.THINKING_BUDGET_MAP === null) {
-            config.THINKING_BUDGET_MAP = {}; // 默认为空对象
-        }
-        // --- 新增：处理 SAFETY_SETTINGS 默认值 ---
-        if (!config.SAFETY_SETTINGS || !Array.isArray(config.SAFETY_SETTINGS)) {
-            config.SAFETY_SETTINGS = []; // 默认为空数组
-        }
-        // --- 结束：处理 SAFETY_SETTINGS 默认值 ---
-
-        populateForm(config);
-
-        // 确保上传提供商有默认值
-        const uploadProvider = document.getElementById('UPLOAD_PROVIDER');
-        if (uploadProvider && !uploadProvider.value) {
-            uploadProvider.value = 'smms'; // 设置默认值为 smms
-            toggleProviderConfig('smms');
-        }
-
-        showNotification('配置加载成功', 'success');
-    } catch (error) {
-        console.error('加载配置失败:', error);
-        showNotification('加载配置失败: ' + error.message, 'error');
-
-        // 加载失败时，使用默认配置
-        const defaultConfig = {
-            API_KEYS: [''],
-            ALLOWED_TOKENS: [''],
-            IMAGE_MODELS: ['gemini-1.5-pro-latest'],
-            SEARCH_MODELS: ['gemini-1.5-flash-latest'],
-            FILTERED_MODELS: ['gemini-1.0-pro-latest'],
-            UPLOAD_PROVIDER: 'smms',
-            PROXIES: [], // 添加默认值
-            THINKING_MODELS: [],
-            THINKING_BUDGET_MAP: {}
-        };
-
-        populateForm(defaultConfig);
-        toggleProviderConfig('smms');
-    }
+// Modal Control Functions
+function openModal(modalElement) {
+  if (modalElement) {
+    modalElement.classList.add(SHOW_CLASS);
+  }
 }
 
-// 填充表单
-function populateForm(config) {
-    const modelIdMap = {}; // modelName -> modelId
+function closeModal(modalElement) {
+  if (modalElement) {
+    modalElement.classList.remove(SHOW_CLASS);
+  }
+}
 
-    // 1. Clear existing dynamic content first
-    const arrayContainers = document.querySelectorAll('.array-container');
-    arrayContainers.forEach(container => {
-        container.innerHTML = ''; // Clear all array containers
+document.addEventListener("DOMContentLoaded", function () {
+  // Initialize configuration
+  initConfig();
+
+  // Tab switching
+  const tabButtons = document.querySelectorAll(".tab-btn");
+  tabButtons.forEach((button) => {
+    button.addEventListener("click", function (e) {
+      e.stopPropagation();
+      const tabId = this.getAttribute("data-tab");
+      switchTab(tabId);
     });
-    const budgetMapContainer = document.getElementById('THINKING_BUDGET_MAP_container');
-    if (budgetMapContainer) {
-        budgetMapContainer.innerHTML = ''; // Clear budget map container
-    } else {
-        console.error("Critical: THINKING_BUDGET_MAP_container not found!");
-        return; // Cannot proceed
-    }
+  });
 
-    // 2. Populate THINKING_MODELS and build the map
-    if (Array.isArray(config.THINKING_MODELS)) {
-        const container = document.getElementById('THINKING_MODELS_container');
-        if (container) {
-            config.THINKING_MODELS.forEach(modelName => {
-                if (modelName && typeof modelName === 'string' && modelName.trim()) {
-                    const trimmedModelName = modelName.trim();
-                    // Call addArrayItemWithValue to add the model DOM element and get its ID
-                    const modelId = addArrayItemWithValue('THINKING_MODELS', trimmedModelName);
-                    if (modelId) {
-                        modelIdMap[trimmedModelName] = modelId;
-                    } else {
-                         console.warn(`Failed to get modelId for THINKING_MODEL: '${trimmedModelName}'`);
-                    }
-                } else {
-                     console.warn(`Invalid THINKING_MODEL entry found:`, modelName);
-                }
+  // Upload provider switching
+  const uploadProviderSelect = document.getElementById("UPLOAD_PROVIDER");
+  if (uploadProviderSelect) {
+    uploadProviderSelect.addEventListener("change", function () {
+      toggleProviderConfig(this.value);
+    });
+  }
+
+  // Toggle switch events
+  const toggleSwitches = document.querySelectorAll(".toggle-switch");
+  toggleSwitches.forEach((toggleSwitch) => {
+    toggleSwitch.addEventListener("click", function (e) {
+      e.stopPropagation();
+      const checkbox = this.querySelector('input[type="checkbox"]');
+      if (checkbox) {
+        checkbox.checked = !checkbox.checked;
+      }
+    });
+  });
+
+  // Save button
+  const saveBtn = document.getElementById("saveBtn");
+  if (saveBtn) {
+    saveBtn.addEventListener("click", saveConfig);
+  }
+
+  // Reset button
+  const resetBtn = document.getElementById("resetBtn");
+  if (resetBtn) {
+    resetBtn.addEventListener("click", resetConfig); // resetConfig will open the modal
+  }
+
+  // Scroll buttons
+  window.addEventListener("scroll", toggleScrollButtons);
+
+  // API Key Modal Elements and Events
+  const addApiKeyBtn = document.getElementById("addApiKeyBtn");
+  const closeApiKeyModalBtn = document.getElementById("closeApiKeyModalBtn");
+  const cancelAddApiKeyBtn = document.getElementById("cancelAddApiKeyBtn");
+  const confirmAddApiKeyBtn = document.getElementById("confirmAddApiKeyBtn");
+
+  if (addApiKeyBtn) {
+    addApiKeyBtn.addEventListener("click", () => {
+      openModal(apiKeyModal);
+      if (apiKeyBulkInput) apiKeyBulkInput.value = "";
+    });
+  }
+  if (closeApiKeyModalBtn)
+    closeApiKeyModalBtn.addEventListener("click", () =>
+      closeModal(apiKeyModal)
+    );
+  if (cancelAddApiKeyBtn)
+    cancelAddApiKeyBtn.addEventListener("click", () => closeModal(apiKeyModal));
+  if (confirmAddApiKeyBtn)
+    confirmAddApiKeyBtn.addEventListener("click", handleBulkAddApiKeys);
+  if (apiKeySearchInput)
+    apiKeySearchInput.addEventListener("input", handleApiKeySearch);
+
+  // Bulk Delete API Key Modal Elements and Events
+  const bulkDeleteApiKeyBtn = document.getElementById("bulkDeleteApiKeyBtn");
+  const closeBulkDeleteModalBtn = document.getElementById(
+    "closeBulkDeleteModalBtn"
+  );
+  const cancelBulkDeleteApiKeyBtn = document.getElementById(
+    "cancelBulkDeleteApiKeyBtn"
+  );
+  const confirmBulkDeleteApiKeyBtn = document.getElementById(
+    "confirmBulkDeleteApiKeyBtn"
+  );
+
+  if (bulkDeleteApiKeyBtn) {
+    bulkDeleteApiKeyBtn.addEventListener("click", () => {
+      openModal(bulkDeleteApiKeyModal);
+      if (bulkDeleteApiKeyInput) bulkDeleteApiKeyInput.value = "";
+    });
+  }
+  if (closeBulkDeleteModalBtn)
+    closeBulkDeleteModalBtn.addEventListener("click", () =>
+      closeModal(bulkDeleteApiKeyModal)
+    );
+  if (cancelBulkDeleteApiKeyBtn)
+    cancelBulkDeleteApiKeyBtn.addEventListener("click", () =>
+      closeModal(bulkDeleteApiKeyModal)
+    );
+  if (confirmBulkDeleteApiKeyBtn)
+    confirmBulkDeleteApiKeyBtn.addEventListener(
+      "click",
+      handleBulkDeleteApiKeys
+    );
+
+  // Proxy Modal Elements and Events
+  const addProxyBtn = document.getElementById("addProxyBtn");
+  const closeProxyModalBtn = document.getElementById("closeProxyModalBtn");
+  const cancelAddProxyBtn = document.getElementById("cancelAddProxyBtn");
+  const confirmAddProxyBtn = document.getElementById("confirmAddProxyBtn");
+
+  if (addProxyBtn) {
+    addProxyBtn.addEventListener("click", () => {
+      openModal(proxyModal);
+      if (proxyBulkInput) proxyBulkInput.value = "";
+    });
+  }
+  if (closeProxyModalBtn)
+    closeProxyModalBtn.addEventListener("click", () => closeModal(proxyModal));
+  if (cancelAddProxyBtn)
+    cancelAddProxyBtn.addEventListener("click", () => closeModal(proxyModal));
+  if (confirmAddProxyBtn)
+    confirmAddProxyBtn.addEventListener("click", handleBulkAddProxies);
+
+  // Bulk Delete Proxy Modal Elements and Events
+  const bulkDeleteProxyBtn = document.getElementById("bulkDeleteProxyBtn");
+  const closeBulkDeleteProxyModalBtn = document.getElementById(
+    "closeBulkDeleteProxyModalBtn"
+  );
+  const cancelBulkDeleteProxyBtn = document.getElementById(
+    "cancelBulkDeleteProxyBtn"
+  );
+  const confirmBulkDeleteProxyBtn = document.getElementById(
+    "confirmBulkDeleteProxyBtn"
+  );
+
+  if (bulkDeleteProxyBtn) {
+    bulkDeleteProxyBtn.addEventListener("click", () => {
+      openModal(bulkDeleteProxyModal);
+      if (bulkDeleteProxyInput) bulkDeleteProxyInput.value = "";
+    });
+  }
+  if (closeBulkDeleteProxyModalBtn)
+    closeBulkDeleteProxyModalBtn.addEventListener("click", () =>
+      closeModal(bulkDeleteProxyModal)
+    );
+  if (cancelBulkDeleteProxyBtn)
+    cancelBulkDeleteProxyBtn.addEventListener("click", () =>
+      closeModal(bulkDeleteProxyModal)
+    );
+  if (confirmBulkDeleteProxyBtn)
+    confirmBulkDeleteProxyBtn.addEventListener(
+      "click",
+      handleBulkDeleteProxies
+    );
+
+  // Reset Confirmation Modal Elements and Events
+  const closeResetModalBtn = document.getElementById("closeResetModalBtn");
+  const cancelResetBtn = document.getElementById("cancelResetBtn");
+  const confirmResetBtn = document.getElementById("confirmResetBtn");
+
+  if (closeResetModalBtn)
+    closeResetModalBtn.addEventListener("click", () =>
+      closeModal(resetConfirmModal)
+    );
+  if (cancelResetBtn)
+    cancelResetBtn.addEventListener("click", () =>
+      closeModal(resetConfirmModal)
+    );
+  if (confirmResetBtn) {
+    confirmResetBtn.addEventListener("click", () => {
+      closeModal(resetConfirmModal);
+      executeReset();
+    });
+  }
+
+  // Click outside modal to close
+  window.addEventListener("click", (event) => {
+    const modals = [
+      apiKeyModal,
+      resetConfirmModal,
+      bulkDeleteApiKeyModal,
+      proxyModal,
+      bulkDeleteProxyModal,
+    ];
+    modals.forEach((modal) => {
+      if (event.target === modal) {
+        closeModal(modal);
+      }
+    });
+  });
+
+  // Removed static token generation button event listener, now handled dynamically if needed or by specific buttons.
+
+  // Authentication token generation button
+  const generateAuthTokenBtn = document.getElementById("generateAuthTokenBtn");
+  const authTokenInput = document.getElementById("AUTH_TOKEN");
+  if (generateAuthTokenBtn && authTokenInput) {
+    generateAuthTokenBtn.addEventListener("click", function () {
+      const newToken = generateRandomToken(); // Assuming generateRandomToken is defined elsewhere
+      authTokenInput.value = newToken;
+      if (authTokenInput.classList.contains(SENSITIVE_INPUT_CLASS)) {
+        const event = new Event("focusout", {
+          bubbles: true,
+          cancelable: true,
+        });
+        authTokenInput.dispatchEvent(event);
+      }
+      showNotification("已生成新认证令牌", "success");
+    });
+  }
+
+  // Event delegation for THINKING_MODELS input changes to update budget map keys
+  if (thinkingModelsContainer) {
+    thinkingModelsContainer.addEventListener("input", function (event) {
+      const target = event.target;
+      if (
+        target &&
+        target.classList.contains(ARRAY_INPUT_CLASS) &&
+        target.closest(`.${ARRAY_ITEM_CLASS}[data-model-id]`)
+      ) {
+        const modelInput = target;
+        const modelItem = modelInput.closest(`.${ARRAY_ITEM_CLASS}`);
+        const modelId = modelItem.getAttribute("data-model-id");
+        const budgetKeyInput = document.querySelector(
+          `.${MAP_KEY_INPUT_CLASS}[data-model-id="${modelId}"]`
+        );
+        if (budgetKeyInput) {
+          budgetKeyInput.value = modelInput.value;
+        }
+      }
+    });
+  }
+
+  // Event delegation for dynamically added remove buttons and generate token buttons within array items
+  if (configForm) {
+    // Ensure configForm exists before adding event listener
+    configForm.addEventListener("click", function (event) {
+      const target = event.target;
+      const removeButton = target.closest(".remove-btn");
+      const generateButton = target.closest(".generate-btn");
+
+      if (removeButton && removeButton.closest(`.${ARRAY_ITEM_CLASS}`)) {
+        const arrayItem = removeButton.closest(`.${ARRAY_ITEM_CLASS}`);
+        const parentContainer = arrayItem.parentElement;
+        const isThinkingModelItem =
+          arrayItem.hasAttribute("data-model-id") &&
+          parentContainer &&
+          parentContainer.id === "THINKING_MODELS_container";
+        const isSafetySettingItem = arrayItem.classList.contains(
+          SAFETY_SETTING_ITEM_CLASS
+        );
+
+        if (isThinkingModelItem) {
+          const modelId = arrayItem.getAttribute("data-model-id");
+          const budgetMapItem = document.querySelector(
+            `.${MAP_ITEM_CLASS}[data-model-id="${modelId}"]`
+          );
+          if (budgetMapItem) {
+            budgetMapItem.remove();
+          }
+          // Check and add placeholder for budget map if empty
+          const budgetContainer = document.getElementById(
+            "THINKING_BUDGET_MAP_container"
+          );
+          if (budgetContainer && budgetContainer.children.length === 0) {
+            budgetContainer.innerHTML =
+              '<div class="text-gray-500 text-sm italic">请在上方添加思考模型，预算将自动关联。</div>';
+          }
+        }
+        arrayItem.remove();
+        // Check and add placeholder for safety settings if empty
+        if (
+          isSafetySettingItem &&
+          parentContainer &&
+          parentContainer.children.length === 0
+        ) {
+          parentContainer.innerHTML =
+            '<div class="text-gray-500 text-sm italic">定义模型的安全过滤阈值。</div>';
+        }
+      } else if (
+        generateButton &&
+        generateButton.closest(`.${ARRAY_ITEM_CLASS}`)
+      ) {
+        const inputField = generateButton
+          .closest(`.${ARRAY_ITEM_CLASS}`)
+          .querySelector(`.${ARRAY_INPUT_CLASS}`);
+        if (inputField) {
+          const newToken = generateRandomToken();
+          inputField.value = newToken;
+          if (inputField.classList.contains(SENSITIVE_INPUT_CLASS)) {
+            const event = new Event("focusout", {
+              bubbles: true,
+              cancelable: true,
             });
-        } else {
-             console.error("Critical: THINKING_MODELS_container not found!");
+            inputField.dispatchEvent(event);
+          }
+          showNotification("已生成新令牌", "success");
         }
-    }
+      }
+    });
+  }
 
-    // 3. Populate THINKING_BUDGET_MAP using the map
-    let budgetItemsAdded = false;
-    if (config.THINKING_BUDGET_MAP && typeof config.THINKING_BUDGET_MAP === 'object') {
-        for (const [modelName, budgetValue] of Object.entries(config.THINKING_BUDGET_MAP)) {
-             if (modelName && typeof modelName === 'string') {
-                const trimmedModelName = modelName.trim();
-                const modelId = modelIdMap[trimmedModelName]; // Look up the ID
-                if (modelId) {
-                    // Call the function specifically designed to add ONLY the budget map DOM element
-                    createAndAppendBudgetMapItem(trimmedModelName, budgetValue, modelId);
-                    budgetItemsAdded = true;
-                } else {
-                    // Log if a budget entry exists but its corresponding model wasn't found/added
-                    console.warn(`Budget map: Could not find model ID for '${trimmedModelName}'. Skipping budget item.`);
-                }
-            } else {
-                 console.warn(`Invalid key found in THINKING_BUDGET_MAP:`, modelName);
-            }
+  // Add Safety Setting button
+  const addSafetySettingBtn = document.getElementById("addSafetySettingBtn");
+  if (addSafetySettingBtn) {
+    addSafetySettingBtn.addEventListener("click", () => addSafetySettingItem());
+  }
+
+  initializeSensitiveFields(); // Initialize sensitive field handling
+}); // <-- DOMContentLoaded end
+
+/**
+ * Initializes sensitive input field behavior (masking/unmasking).
+ */
+function initializeSensitiveFields() {
+  if (!configForm) return;
+
+  // Helper function: Mask field
+  function maskField(field) {
+    if (field.value && field.value !== MASKED_VALUE) {
+      field.setAttribute("data-real-value", field.value);
+      field.value = MASKED_VALUE;
+    } else if (!field.value) {
+      // If field value is empty string
+      field.removeAttribute("data-real-value");
+      // Ensure empty value doesn't show as asterisks
+      if (field.value === MASKED_VALUE) field.value = "";
+    }
+  }
+
+  // Helper function: Unmask field
+  function unmaskField(field) {
+    if (field.hasAttribute("data-real-value")) {
+      field.value = field.getAttribute("data-real-value");
+    }
+    // If no data-real-value and value is MASKED_VALUE, it might be an initial empty sensitive field, clear it
+    else if (
+      field.value === MASKED_VALUE &&
+      !field.hasAttribute("data-real-value")
+    ) {
+      field.value = "";
+    }
+  }
+
+  // Initial masking for existing sensitive fields on page load
+  // This function is called after populateForm and after dynamic element additions (via event delegation)
+  function initialMaskAllExisting() {
+    const sensitiveFields = configForm.querySelectorAll(
+      `.${SENSITIVE_INPUT_CLASS}`
+    );
+    sensitiveFields.forEach((field) => {
+      if (field.type === "password") {
+        // For password fields, browser handles it. We just ensure data-original-type is set
+        // and if it has a value, we also store data-real-value so it can be shown when switched to text
+        if (field.value) {
+          field.setAttribute("data-real-value", field.value);
         }
-    }
-    // Add placeholder only if no budget items were successfully added
-    if (!budgetItemsAdded && budgetMapContainer) {
-         budgetMapContainer.innerHTML = '<div class="text-gray-500 text-sm italic">请在上方添加思考模型，预算将自动关联。</div>';
-    }
+        // No need to set to MASKED_VALUE as browser handles it.
+      } else if (
+        field.type === "text" ||
+        field.tagName.toLowerCase() === "textarea"
+      ) {
+        maskField(field);
+      }
+    });
+  }
+  initialMaskAllExisting();
 
-    // 4. Populate other array fields (excluding THINKING_MODELS)
-    for (const [key, value] of Object.entries(config)) {
-        if (Array.isArray(value) && key !== 'THINKING_MODELS') {
-            const container = document.getElementById(`${key}_container`);
-            if (container) {
-                // Container already cleared, just add items
-                value.forEach(itemValue => {
-                    if (typeof itemValue === 'string') {
-                         addArrayItemWithValue(key, itemValue); // This adds non-thinking model array items
-                    } else {
-                         console.warn(`Invalid item found in array '${key}':`, itemValue);
-                    }
-                });
-            }
+  // Event delegation for dynamic and static fields
+  configForm.addEventListener("focusin", function (event) {
+    const target = event.target;
+    if (target.classList.contains(SENSITIVE_INPUT_CLASS)) {
+      if (target.type === "password") {
+        // Record original type to switch back on blur
+        if (!target.hasAttribute("data-original-type")) {
+          target.setAttribute("data-original-type", "password");
         }
-    }
-
-    // 5. Populate non-array/non-budget fields
-     for (const [key, value] of Object.entries(config)) {
-        if (!Array.isArray(value) && !(typeof value === 'object' && value !== null && key === 'THINKING_BUDGET_MAP')) {
-            const element = document.getElementById(key);
-            if (element) {
-                if (element.type === 'checkbox' && typeof value === 'boolean') {
-                    element.checked = value;
-                } else if (element.type !== 'checkbox') {
-                    if (key === 'LOG_LEVEL' && typeof value === 'string') {
-                        element.value = value.toUpperCase();
-                    } else {
-                        element.value = (value !== null && value !== undefined) ? value : '';
-                    }
-                }
-            }
+        target.type = "text"; // Switch to text type to show content
+        // If data-real-value exists (e.g., set during populateForm), use it
+        if (target.hasAttribute("data-real-value")) {
+          target.value = target.getAttribute("data-real-value");
         }
+        // Otherwise, the browser's existing password value will be shown directly
+      } else {
+        // For type="text" or textarea
+        unmaskField(target);
+      }
     }
+  });
 
-    // 6. Initialize upload provider
-    const uploadProvider = document.getElementById('UPLOAD_PROVIDER');
-    if (uploadProvider) {
-        toggleProviderConfig(uploadProvider.value);
-    }
+  configForm.addEventListener("focusout", function (event) {
+    const target = event.target;
+    if (target.classList.contains(SENSITIVE_INPUT_CLASS)) {
+      // First, if the field is currently text and has a value, update data-real-value
+      if (
+        target.type === "text" ||
+        target.tagName.toLowerCase() === "textarea"
+      ) {
+        if (target.value && target.value !== MASKED_VALUE) {
+          target.setAttribute("data-real-value", target.value);
+        } else if (!target.value) {
+          // If value is empty, remove data-real-value
+          target.removeAttribute("data-real-value");
+        }
+      }
 
-    // --- 新增：填充 SAFETY_SETTINGS ---
-    let safetyItemsAdded = false;
-    if (safetySettingsContainer && Array.isArray(config.SAFETY_SETTINGS)) {
-        config.SAFETY_SETTINGS.forEach(setting => {
-            if (setting && typeof setting === 'object' && setting.category && setting.threshold) {
-                addSafetySettingItem(setting.category, setting.threshold);
-                safetyItemsAdded = true;
-            } else {
-                console.warn("Invalid safety setting item found:", setting);
-            }
-        });
+      // Then handle type switching and masking
+      if (
+        target.getAttribute("data-original-type") === "password" &&
+        target.type === "text"
+      ) {
+        target.type = "password"; // Switch back to password type
+        // For password type, browser handles masking automatically, no need to set MASKED_VALUE manually
+        // data-real-value has already been updated by the logic above
+      } else if (
+        target.type === "text" ||
+        target.tagName.toLowerCase() === "textarea"
+      ) {
+        // For text or textarea sensitive fields, perform masking
+        maskField(target);
+      }
     }
-    // 如果没有添加任何安全设置项，则显示占位符
-    if (safetySettingsContainer && !safetyItemsAdded) {
-         safetySettingsContainer.innerHTML = '<div class="text-gray-500 text-sm italic">定义模型的安全过滤阈值。</div>';
-    }
-    // --- 结束：填充 SAFETY_SETTINGS ---
+  });
 }
 
-// --- 新增：处理批量添加 API Key 的逻辑 ---
+/**
+ * Generates a UUID.
+ * @returns {string} A new UUID.
+ */
+function generateUUID() {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+    var r = (Math.random() * 16) | 0,
+      v = c == "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/**
+ * Initializes the configuration by fetching it from the server and populating the form.
+ */
+async function initConfig() {
+  try {
+    showNotification("正在加载配置...", "info");
+    const response = await fetch("/api/config");
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const config = await response.json();
+
+    // 确保数组字段有默认值
+    if (
+      !config.API_KEYS ||
+      !Array.isArray(config.API_KEYS) ||
+      config.API_KEYS.length === 0
+    ) {
+      config.API_KEYS = ["请在此处输入 API 密钥"];
+    }
+
+    if (
+      !config.ALLOWED_TOKENS ||
+      !Array.isArray(config.ALLOWED_TOKENS) ||
+      config.ALLOWED_TOKENS.length === 0
+    ) {
+      config.ALLOWED_TOKENS = [""];
+    }
+
+    if (
+      !config.IMAGE_MODELS ||
+      !Array.isArray(config.IMAGE_MODELS) ||
+      config.IMAGE_MODELS.length === 0
+    ) {
+      config.IMAGE_MODELS = ["gemini-1.5-pro-latest"];
+    }
+
+    if (
+      !config.SEARCH_MODELS ||
+      !Array.isArray(config.SEARCH_MODELS) ||
+      config.SEARCH_MODELS.length === 0
+    ) {
+      config.SEARCH_MODELS = ["gemini-1.5-flash-latest"];
+    }
+
+    if (
+      !config.FILTERED_MODELS ||
+      !Array.isArray(config.FILTERED_MODELS) ||
+      config.FILTERED_MODELS.length === 0
+    ) {
+      config.FILTERED_MODELS = ["gemini-1.0-pro-latest"];
+    }
+    // --- 新增：处理 PROXIES 默认值 ---
+    if (!config.PROXIES || !Array.isArray(config.PROXIES)) {
+      config.PROXIES = []; // 默认为空数组
+    }
+    // --- 新增：处理新字段的默认值 ---
+    if (!config.THINKING_MODELS || !Array.isArray(config.THINKING_MODELS)) {
+      config.THINKING_MODELS = []; // 默认为空数组
+    }
+    if (
+      !config.THINKING_BUDGET_MAP ||
+      typeof config.THINKING_BUDGET_MAP !== "object" ||
+      config.THINKING_BUDGET_MAP === null
+    ) {
+      config.THINKING_BUDGET_MAP = {}; // 默认为空对象
+    }
+    // --- 新增：处理 SAFETY_SETTINGS 默认值 ---
+    if (!config.SAFETY_SETTINGS || !Array.isArray(config.SAFETY_SETTINGS)) {
+      config.SAFETY_SETTINGS = []; // 默认为空数组
+    }
+    // --- 结束：处理 SAFETY_SETTINGS 默认值 ---
+
+    // --- 新增：处理自动删除错误日志配置的默认值 ---
+    if (typeof config.AUTO_DELETE_ERROR_LOGS_ENABLED === "undefined") {
+      config.AUTO_DELETE_ERROR_LOGS_ENABLED = false;
+    }
+    if (typeof config.AUTO_DELETE_ERROR_LOGS_DAYS === "undefined") {
+      config.AUTO_DELETE_ERROR_LOGS_DAYS = 7;
+    }
+    // --- 结束：处理自动删除错误日志配置的默认值 ---
+
+    // --- 新增：处理自动删除请求日志配置的默认值 ---
+    if (typeof config.AUTO_DELETE_REQUEST_LOGS_ENABLED === "undefined") {
+      config.AUTO_DELETE_REQUEST_LOGS_ENABLED = false;
+    }
+    if (typeof config.AUTO_DELETE_REQUEST_LOGS_DAYS === "undefined") {
+      config.AUTO_DELETE_REQUEST_LOGS_DAYS = 30;
+    }
+    // --- 结束：处理自动删除请求日志配置的默认值 ---
+
+    populateForm(config);
+    // After populateForm, initialize masking for all populated sensitive fields
+    if (configForm) {
+      // Ensure form exists
+      initializeSensitiveFields(); // Call initializeSensitiveFields to handle initial masking
+    }
+
+    // Ensure upload provider has a default value
+    const uploadProvider = document.getElementById("UPLOAD_PROVIDER");
+    if (uploadProvider && !uploadProvider.value) {
+      uploadProvider.value = "smms"; // 设置默认值为 smms
+      toggleProviderConfig("smms");
+    }
+
+    showNotification("配置加载成功", "success");
+  } catch (error) {
+    console.error("加载配置失败:", error);
+    showNotification("加载配置失败: " + error.message, "error");
+
+    // 加载失败时，使用默认配置
+    const defaultConfig = {
+      API_KEYS: [""],
+      ALLOWED_TOKENS: [""],
+      IMAGE_MODELS: ["gemini-1.5-pro-latest"],
+      SEARCH_MODELS: ["gemini-1.5-flash-latest"],
+      FILTERED_MODELS: ["gemini-1.0-pro-latest"],
+      UPLOAD_PROVIDER: "smms",
+      PROXIES: [], // 添加默认值
+      THINKING_MODELS: [],
+      THINKING_BUDGET_MAP: {},
+      AUTO_DELETE_ERROR_LOGS_ENABLED: false, // 新增默认值
+      AUTO_DELETE_ERROR_LOGS_DAYS: 7, // 新增默认值
+      AUTO_DELETE_REQUEST_LOGS_ENABLED: false, // 新增默认值
+      AUTO_DELETE_REQUEST_LOGS_DAYS: 30, // 新增默认值
+    };
+
+    populateForm(defaultConfig);
+    if (configForm) {
+      // Ensure form exists
+      initializeSensitiveFields(); // Call initializeSensitiveFields to handle initial masking
+    }
+    toggleProviderConfig("smms");
+  }
+}
+
+/**
+ * Populates the configuration form with data.
+ * @param {object} config - The configuration object.
+ */
+function populateForm(config) {
+  const modelIdMap = {}; // modelName -> modelId
+
+  // 1. Clear existing dynamic content first
+  const arrayContainers = document.querySelectorAll(".array-container");
+  arrayContainers.forEach((container) => {
+    container.innerHTML = ""; // Clear all array containers
+  });
+  const budgetMapContainer = document.getElementById(
+    "THINKING_BUDGET_MAP_container"
+  );
+  if (budgetMapContainer) {
+    budgetMapContainer.innerHTML = ""; // Clear budget map container
+  } else {
+    console.error("Critical: THINKING_BUDGET_MAP_container not found!");
+    return; // Cannot proceed
+  }
+
+  // 2. Populate THINKING_MODELS and build the map
+  if (Array.isArray(config.THINKING_MODELS)) {
+    const container = document.getElementById("THINKING_MODELS_container");
+    if (container) {
+      config.THINKING_MODELS.forEach((modelName) => {
+        if (modelName && typeof modelName === "string" && modelName.trim()) {
+          const trimmedModelName = modelName.trim();
+          const modelId = addArrayItemWithValue(
+            "THINKING_MODELS",
+            trimmedModelName
+          );
+          if (modelId) {
+            modelIdMap[trimmedModelName] = modelId;
+          } else {
+            console.warn(
+              `Failed to get modelId for THINKING_MODEL: '${trimmedModelName}'`
+            );
+          }
+        } else {
+          console.warn(`Invalid THINKING_MODEL entry found:`, modelName);
+        }
+      });
+    } else {
+      console.error("Critical: THINKING_MODELS_container not found!");
+    }
+  }
+
+  // 3. Populate THINKING_BUDGET_MAP using the map
+  let budgetItemsAdded = false;
+  if (
+    config.THINKING_BUDGET_MAP &&
+    typeof config.THINKING_BUDGET_MAP === "object"
+  ) {
+    for (const [modelName, budgetValue] of Object.entries(
+      config.THINKING_BUDGET_MAP
+    )) {
+      if (modelName && typeof modelName === "string") {
+        const trimmedModelName = modelName.trim();
+        const modelId = modelIdMap[trimmedModelName]; // Look up the ID
+        if (modelId) {
+          createAndAppendBudgetMapItem(trimmedModelName, budgetValue, modelId);
+          budgetItemsAdded = true;
+        } else {
+          console.warn(
+            `Budget map: Could not find model ID for '${trimmedModelName}'. Skipping budget item.`
+          );
+        }
+      } else {
+        console.warn(`Invalid key found in THINKING_BUDGET_MAP:`, modelName);
+      }
+    }
+  }
+  if (!budgetItemsAdded && budgetMapContainer) {
+    budgetMapContainer.innerHTML =
+      '<div class="text-gray-500 text-sm italic">请在上方添加思考模型，预算将自动关联。</div>';
+  }
+
+  // 4. Populate other array fields (excluding THINKING_MODELS)
+  for (const [key, value] of Object.entries(config)) {
+    if (Array.isArray(value) && key !== "THINKING_MODELS") {
+      const container = document.getElementById(`${key}_container`);
+      if (container) {
+        value.forEach((itemValue) => {
+          if (typeof itemValue === "string") {
+            addArrayItemWithValue(key, itemValue);
+          } else {
+            console.warn(`Invalid item found in array '${key}':`, itemValue);
+          }
+        });
+      }
+    }
+  }
+
+  // 5. Populate non-array/non-budget fields
+  for (const [key, value] of Object.entries(config)) {
+    if (
+      !Array.isArray(value) &&
+      !(
+        typeof value === "object" &&
+        value !== null &&
+        key === "THINKING_BUDGET_MAP"
+      )
+    ) {
+      const element = document.getElementById(key);
+      if (element) {
+        if (element.type === "checkbox" && typeof value === "boolean") {
+          element.checked = value;
+        } else if (element.type !== "checkbox") {
+          if (key === "LOG_LEVEL" && typeof value === "string") {
+            element.value = value.toUpperCase();
+          } else {
+            element.value = value !== null && value !== undefined ? value : "";
+          }
+        }
+      }
+    }
+  }
+
+  // 6. Initialize upload provider
+  const uploadProvider = document.getElementById("UPLOAD_PROVIDER");
+  if (uploadProvider) {
+    toggleProviderConfig(uploadProvider.value);
+  }
+
+  // Populate SAFETY_SETTINGS
+  let safetyItemsAdded = false;
+  if (safetySettingsContainer && Array.isArray(config.SAFETY_SETTINGS)) {
+    config.SAFETY_SETTINGS.forEach((setting) => {
+      if (
+        setting &&
+        typeof setting === "object" &&
+        setting.category &&
+        setting.threshold
+      ) {
+        addSafetySettingItem(setting.category, setting.threshold);
+        safetyItemsAdded = true;
+      } else {
+        console.warn("Invalid safety setting item found:", setting);
+      }
+    });
+  }
+  if (safetySettingsContainer && !safetyItemsAdded) {
+    safetySettingsContainer.innerHTML =
+      '<div class="text-gray-500 text-sm italic">定义模型的安全过滤阈值。</div>';
+  }
+
+  // --- 新增：处理自动删除错误日志的字段 ---
+  const autoDeleteEnabledCheckbox = document.getElementById(
+    "AUTO_DELETE_ERROR_LOGS_ENABLED"
+  );
+  const autoDeleteDaysSelect = document.getElementById(
+    "AUTO_DELETE_ERROR_LOGS_DAYS"
+  );
+
+  if (autoDeleteEnabledCheckbox && autoDeleteDaysSelect) {
+    autoDeleteEnabledCheckbox.checked = !!config.AUTO_DELETE_ERROR_LOGS_ENABLED; // 确保是布尔值
+    autoDeleteDaysSelect.value = config.AUTO_DELETE_ERROR_LOGS_DAYS || 7; // 默认7天
+
+    // 根据复选框状态设置下拉框的禁用状态
+    autoDeleteDaysSelect.disabled = !autoDeleteEnabledCheckbox.checked;
+
+    // 添加事件监听器
+    autoDeleteEnabledCheckbox.addEventListener("change", function () {
+      autoDeleteDaysSelect.disabled = !this.checked;
+    });
+  }
+  // --- 结束：处理自动删除错误日志的字段 ---
+
+  // --- 新增：处理自动删除请求日志的字段 ---
+  const autoDeleteRequestEnabledCheckbox = document.getElementById(
+    "AUTO_DELETE_REQUEST_LOGS_ENABLED"
+  );
+  const autoDeleteRequestDaysSelect = document.getElementById(
+    "AUTO_DELETE_REQUEST_LOGS_DAYS"
+  );
+
+  if (autoDeleteRequestEnabledCheckbox && autoDeleteRequestDaysSelect) {
+    autoDeleteRequestEnabledCheckbox.checked =
+      !!config.AUTO_DELETE_REQUEST_LOGS_ENABLED;
+    autoDeleteRequestDaysSelect.value =
+      config.AUTO_DELETE_REQUEST_LOGS_DAYS || 30;
+    autoDeleteRequestDaysSelect.disabled =
+      !autoDeleteRequestEnabledCheckbox.checked;
+
+    autoDeleteRequestEnabledCheckbox.addEventListener("change", function () {
+      autoDeleteRequestDaysSelect.disabled = !this.checked;
+    });
+  }
+  // --- 结束：处理自动删除请求日志的字段 ---
+}
+
+/**
+ * Handles the bulk addition of API keys from the modal input.
+ */
 function handleBulkAddApiKeys() {
-    const apiKeyBulkInput = document.getElementById('apiKeyBulkInput');
-    const apiKeyContainer = document.getElementById('API_KEYS_container');
-    const apiKeyModal = document.getElementById('apiKeyModal');
+  const apiKeyContainer = document.getElementById("API_KEYS_container");
+  if (!apiKeyBulkInput || !apiKeyContainer || !apiKeyModal) return;
 
-    if (!apiKeyBulkInput || !apiKeyContainer || !apiKeyModal) return;
+  const bulkText = apiKeyBulkInput.value;
+  const extractedKeys = bulkText.match(API_KEY_REGEX) || [];
 
-    const bulkText = apiKeyBulkInput.value;
-    const keyRegex = /AIzaSy\S{33}/g; // 全局匹配
-    const extractedKeys = bulkText.match(keyRegex) || [];
+  const currentKeyInputs = apiKeyContainer.querySelectorAll(
+    `.${ARRAY_INPUT_CLASS}.${SENSITIVE_INPUT_CLASS}`
+  );
+  let currentKeys = Array.from(currentKeyInputs)
+    .map((input) => {
+      return input.hasAttribute("data-real-value")
+        ? input.getAttribute("data-real-value")
+        : input.value;
+    })
+    .filter((key) => key && key.trim() !== "" && key !== MASKED_VALUE);
 
-    // 获取当前已有的 keys
-    const currentKeyInputs = apiKeyContainer.querySelectorAll('.array-input');
-    const currentKeys = Array.from(currentKeyInputs).map(input => input.value).filter(key => key.trim() !== '');
+  const combinedKeys = new Set([...currentKeys, ...extractedKeys]);
+  const uniqueKeys = Array.from(combinedKeys);
 
-    // 合并并去重
-    const combinedKeys = new Set([...currentKeys, ...extractedKeys]);
-    const uniqueKeys = Array.from(combinedKeys);
+  apiKeyContainer.innerHTML = ""; // Clear existing items more directly
 
-    // 清空现有列表显示
-    const existingItems = apiKeyContainer.querySelectorAll('.array-item');
-    existingItems.forEach(item => item.remove());
+  uniqueKeys.forEach((key) => {
+    addArrayItemWithValue("API_KEYS", key);
+  });
 
-    // 重新填充列表
-    uniqueKeys.forEach(key => {
-        addArrayItemWithValue('API_KEYS', key);
-    });
+  const newKeyInputs = apiKeyContainer.querySelectorAll(
+    `.${ARRAY_INPUT_CLASS}.${SENSITIVE_INPUT_CLASS}`
+  );
+  newKeyInputs.forEach((input) => {
+    if (configForm && typeof initializeSensitiveFields === "function") {
+      const focusoutEvent = new Event("focusout", {
+        bubbles: true,
+        cancelable: true,
+      });
+      input.dispatchEvent(focusoutEvent);
+    }
+  });
 
-    // 关闭模态框
-    apiKeyModal.classList.remove('show');
-    showNotification(`添加/更新了 ${uniqueKeys.length} 个唯一密钥`, 'success');
+  closeModal(apiKeyModal);
+  showNotification(`添加/更新了 ${uniqueKeys.length} 个唯一密钥`, "success");
 }
 
-// --- 新增：处理 API Key 搜索的逻辑 ---
+/**
+ * Handles searching/filtering of API keys in the list.
+ */
 function handleApiKeySearch() {
-    const apiKeySearchInput = document.getElementById('apiKeySearchInput');
-    const apiKeyContainer = document.getElementById('API_KEYS_container');
+  const apiKeyContainer = document.getElementById("API_KEYS_container");
+  if (!apiKeySearchInput || !apiKeyContainer) return;
 
-    if (!apiKeySearchInput || !apiKeyContainer) return;
+  const searchTerm = apiKeySearchInput.value.toLowerCase();
+  const keyItems = apiKeyContainer.querySelectorAll(`.${ARRAY_ITEM_CLASS}`);
 
-    const searchTerm = apiKeySearchInput.value.toLowerCase();
-    const keyItems = apiKeyContainer.querySelectorAll('.array-item');
-
-    keyItems.forEach(item => {
-        const input = item.querySelector('.array-input');
-        if (input) {
-            const key = input.value.toLowerCase();
-            if (key.includes(searchTerm)) {
-                item.style.display = 'flex'; // 或者 'block'，取决于你的布局
-            } else {
-                item.style.display = 'none';
-            }
-        }
-    });
+  keyItems.forEach((item) => {
+    const input = item.querySelector(
+      `.${ARRAY_INPUT_CLASS}.${SENSITIVE_INPUT_CLASS}`
+    );
+    if (input) {
+      const realValue = input.hasAttribute("data-real-value")
+        ? input.getAttribute("data-real-value").toLowerCase()
+        : input.value.toLowerCase();
+      item.style.display = realValue.includes(searchTerm) ? "flex" : "none";
+    }
+  });
 }
 
-// --- 新增：处理批量删除 API Key 的逻辑 ---
+/**
+ * Handles the bulk deletion of API keys based on input from the modal.
+ */
 function handleBulkDeleteApiKeys() {
-    const bulkDeleteTextarea = document.getElementById('bulkDeleteApiKeyInput'); // Use the textarea ID
-    const apiKeyContainer = document.getElementById('API_KEYS_container');
-    const bulkDeleteModal = document.getElementById('bulkDeleteApiKeyModal');
+  const apiKeyContainer = document.getElementById("API_KEYS_container");
+  if (!bulkDeleteApiKeyInput || !apiKeyContainer || !bulkDeleteApiKeyModal)
+    return;
 
-    if (!bulkDeleteTextarea || !apiKeyContainer || !bulkDeleteModal) return;
+  const bulkText = bulkDeleteApiKeyInput.value;
+  if (!bulkText.trim()) {
+    showNotification("请粘贴需要删除的 API 密钥", "warning");
+    return;
+  }
 
-    const bulkText = bulkDeleteTextarea.value;
-    if (!bulkText.trim()) {
-        showNotification('请粘贴需要删除的 API 密钥', 'warning');
-        return;
+  const keysToDelete = new Set(bulkText.match(API_KEY_REGEX) || []);
+
+  if (keysToDelete.size === 0) {
+    showNotification("未在输入内容中提取到有效的 API 密钥格式", "warning");
+    return;
+  }
+
+  const keyItems = apiKeyContainer.querySelectorAll(`.${ARRAY_ITEM_CLASS}`);
+  let deleteCount = 0;
+
+  keyItems.forEach((item) => {
+    const input = item.querySelector(
+      `.${ARRAY_INPUT_CLASS}.${SENSITIVE_INPUT_CLASS}`
+    );
+    const realValue =
+      input &&
+      (input.hasAttribute("data-real-value")
+        ? input.getAttribute("data-real-value")
+        : input.value);
+    if (realValue && keysToDelete.has(realValue)) {
+      item.remove();
+      deleteCount++;
     }
+  });
 
-    // Use the same regex as for adding keys to extract keys to delete
-    const keyRegex = /AIzaSy\S{33}/g;
-    const keysToDelete = new Set(bulkText.match(keyRegex) || []); // Create a Set for efficient lookup
+  closeModal(bulkDeleteApiKeyModal);
 
-    if (keysToDelete.size === 0) {
-        showNotification('未在输入内容中提取到有效的 API 密钥格式', 'warning');
-        // Optionally clear the textarea or keep it as is
-        // bulkDeleteTextarea.value = '';
-        return;
-    }
-
-    const keyItems = apiKeyContainer.querySelectorAll('.array-item');
-    let deleteCount = 0;
-
-    keyItems.forEach(item => {
-        const input = item.querySelector('.array-input');
-        // Check if the input exists and its value is in the set of keys to delete
-        if (input && keysToDelete.has(input.value)) {
-            item.remove(); // Remove the entire array item element
-            deleteCount++;
-        }
-    });
-
-    // Close the modal
-    bulkDeleteModal.classList.remove('show');
-
-    // Provide feedback
-    if (deleteCount > 0) {
-        showNotification(`成功删除了 ${deleteCount} 个匹配的密钥`, 'success');
-    } else {
-        // This message implies keys were extracted but not found in the current list
-        showNotification('列表中未找到您输入的任何密钥进行删除', 'info');
-    }
-
-    // Clear the textarea after processing
-    bulkDeleteTextarea.value = '';
+  if (deleteCount > 0) {
+    showNotification(`成功删除了 ${deleteCount} 个匹配的密钥`, "success");
+  } else {
+    showNotification("列表中未找到您输入的任何密钥进行删除", "info");
+  }
+  bulkDeleteApiKeyInput.value = "";
 }
 
-// --- 新增：处理批量添加 Proxy 的逻辑 ---
+/**
+ * Handles the bulk addition of proxies from the modal input.
+ */
 function handleBulkAddProxies() {
-    const proxyBulkInput = document.getElementById('proxyBulkInput');
-    const proxyContainer = document.getElementById('PROXIES_container');
-    const proxyModal = document.getElementById('proxyModal');
+  const proxyContainer = document.getElementById("PROXIES_container");
+  if (!proxyBulkInput || !proxyContainer || !proxyModal) return;
 
-    if (!proxyBulkInput || !proxyContainer || !proxyModal) return;
+  const bulkText = proxyBulkInput.value;
+  const extractedProxies = bulkText.match(PROXY_REGEX) || [];
 
-    const bulkText = proxyBulkInput.value;
-    // 匹配 http(s):// 或 socks5:// 格式的代理，允许包含用户名密码
-    const proxyRegex = /(?:https?|socks5):\/\/(?:[^:@\/]+(?::[^@\/]+)?@)?(?:[^:\/\s]+)(?::\d+)?/g;
-    const extractedProxies = bulkText.match(proxyRegex) || [];
+  const currentProxyInputs = proxyContainer.querySelectorAll(
+    `.${ARRAY_INPUT_CLASS}`
+  );
+  const currentProxies = Array.from(currentProxyInputs)
+    .map((input) => input.value)
+    .filter((proxy) => proxy.trim() !== "");
 
-    // 获取当前已有的 proxies
-    const currentProxyInputs = proxyContainer.querySelectorAll('.array-input');
-    const currentProxies = Array.from(currentProxyInputs).map(input => input.value).filter(proxy => proxy.trim() !== '');
+  const combinedProxies = new Set([...currentProxies, ...extractedProxies]);
+  const uniqueProxies = Array.from(combinedProxies);
 
-    // 合并并去重
-    const combinedProxies = new Set([...currentProxies, ...extractedProxies]);
-    const uniqueProxies = Array.from(combinedProxies);
+  proxyContainer.innerHTML = ""; // Clear existing items
 
-    // 清空现有列表显示
-    const existingItems = proxyContainer.querySelectorAll('.array-item');
-    existingItems.forEach(item => item.remove());
+  uniqueProxies.forEach((proxy) => {
+    addArrayItemWithValue("PROXIES", proxy);
+  });
 
-    // 重新填充列表
-    uniqueProxies.forEach(proxy => {
-        addArrayItemWithValue('PROXIES', proxy);
-    });
-
-    // 关闭模态框
-    proxyModal.classList.remove('show');
-    showNotification(`添加/更新了 ${uniqueProxies.length} 个唯一代理`, 'success');
+  closeModal(proxyModal);
+  showNotification(`添加/更新了 ${uniqueProxies.length} 个唯一代理`, "success");
 }
-// --- 结束：处理批量添加 Proxy 的逻辑 ---
 
-// --- 新增：处理批量删除 Proxy 的逻辑 ---
+/**
+ * Handles the bulk deletion of proxies based on input from the modal.
+ */
 function handleBulkDeleteProxies() {
-    const bulkDeleteTextarea = document.getElementById('bulkDeleteProxyInput');
-    const proxyContainer = document.getElementById('PROXIES_container');
-    const bulkDeleteModal = document.getElementById('bulkDeleteProxyModal');
+  const proxyContainer = document.getElementById("PROXIES_container");
+  if (!bulkDeleteProxyInput || !proxyContainer || !bulkDeleteProxyModal) return;
 
-    if (!bulkDeleteTextarea || !proxyContainer || !bulkDeleteModal) return;
+  const bulkText = bulkDeleteProxyInput.value;
+  if (!bulkText.trim()) {
+    showNotification("请粘贴需要删除的代理地址", "warning");
+    return;
+  }
 
-    const bulkText = bulkDeleteTextarea.value;
-    if (!bulkText.trim()) {
-        showNotification('请粘贴需要删除的代理地址', 'warning');
-        return;
+  const proxiesToDelete = new Set(bulkText.match(PROXY_REGEX) || []);
+
+  if (proxiesToDelete.size === 0) {
+    showNotification("未在输入内容中提取到有效的代理地址格式", "warning");
+    return;
+  }
+
+  const proxyItems = proxyContainer.querySelectorAll(`.${ARRAY_ITEM_CLASS}`);
+  let deleteCount = 0;
+
+  proxyItems.forEach((item) => {
+    const input = item.querySelector(`.${ARRAY_INPUT_CLASS}`);
+    if (input && proxiesToDelete.has(input.value)) {
+      item.remove();
+      deleteCount++;
     }
+  });
 
-    // 使用与添加时相同的正则表达式来提取要删除的代理
-    const proxyRegex = /(?:https?|socks5):\/\/(?:[^:@\/]+(?::[^@\/]+)?@)?(?:[^:\/\s]+)(?::\d+)?/g;
-    const proxiesToDelete = new Set(bulkText.match(proxyRegex) || []); // 使用 Set 进行高效查找
+  closeModal(bulkDeleteProxyModal);
 
-    if (proxiesToDelete.size === 0) {
-        showNotification('未在输入内容中提取到有效的代理地址格式', 'warning');
-        return;
-    }
-
-    const proxyItems = proxyContainer.querySelectorAll('.array-item');
-    let deleteCount = 0;
-
-    proxyItems.forEach(item => {
-        const input = item.querySelector('.array-input');
-        // 检查输入框是否存在及其值是否在要删除的集合中
-        if (input && proxiesToDelete.has(input.value)) {
-            item.remove(); // 删除整个数组项元素
-            deleteCount++;
-        }
-    });
-
-    // 关闭模态框
-    bulkDeleteModal.classList.remove('show');
-
-    // 提供反馈
-    if (deleteCount > 0) {
-        showNotification(`成功删除了 ${deleteCount} 个匹配的代理`, 'success');
-    } else {
-        showNotification('列表中未找到您输入的任何代理进行删除', 'info');
-    }
-
-    // 处理后清空文本区域
-    bulkDeleteTextarea.value = '';
+  if (deleteCount > 0) {
+    showNotification(`成功删除了 ${deleteCount} 个匹配的代理`, "success");
+  } else {
+    showNotification("列表中未找到您输入的任何代理进行删除", "info");
+  }
+  bulkDeleteProxyInput.value = "";
 }
-// --- 结束：处理批量删除 Proxy 的逻辑 ---
 
-// 切换标签
+/**
+ * Switches the active configuration tab.
+ * @param {string} tabId - The ID of the tab to switch to.
+ */
 function switchTab(tabId) {
-    // 更新标签按钮状态
-    const tabButtons = document.querySelectorAll('.tab-btn');
-    tabButtons.forEach(button => {
-        if (button.getAttribute('data-tab') === tabId) {
-            // 激活状态：主色背景，白色文字，添加阴影
-            button.classList.remove('bg-white', 'bg-opacity-50', 'text-gray-700', 'hover:bg-opacity-70');
-            button.classList.add('bg-primary-600', 'text-white', 'shadow-md');
-        } else {
-            // 非激活状态：白色背景，灰色文字，无阴影
-            button.classList.remove('bg-primary-600', 'text-white', 'shadow-md');
-            button.classList.add('bg-white', 'bg-opacity-50', 'text-gray-700', 'hover:bg-opacity-70');
-        }
-    });
+  // 更新标签按钮状态
+  const tabButtons = document.querySelectorAll(".tab-btn");
+  tabButtons.forEach((button) => {
+    if (button.getAttribute("data-tab") === tabId) {
+      // 激活状态：主色背景，白色文字，添加阴影
+      button.classList.remove(
+        "bg-white",
+        "bg-opacity-50",
+        "text-gray-700",
+        "hover:bg-opacity-70"
+      );
+      button.classList.add("bg-primary-600", "text-white", "shadow-md");
+    } else {
+      // 非激活状态：白色背景，灰色文字，无阴影
+      button.classList.remove("bg-primary-600", "text-white", "shadow-md");
+      button.classList.add(
+        "bg-white",
+        "bg-opacity-50",
+        "text-gray-700",
+        "hover:bg-opacity-70"
+      );
+    }
+  });
 
-    // 更新内容区域
-    const sections = document.querySelectorAll('.config-section');
-    sections.forEach(section => {
-        if (section.id === `${tabId}-section`) {
-            section.classList.add('active');
-        } else {
-            section.classList.remove('active');
-        }
-    });
+  // 更新内容区域
+  const sections = document.querySelectorAll(".config-section");
+  sections.forEach((section) => {
+    if (section.id === `${tabId}-section`) {
+      section.classList.add("active");
+    } else {
+      section.classList.remove("active");
+    }
+  });
 }
 
-// 切换上传提供商配置
+/**
+ * Toggles the visibility of configuration sections for different upload providers.
+ * @param {string} provider - The selected upload provider.
+ */
 function toggleProviderConfig(provider) {
-    const providerConfigs = document.querySelectorAll('.provider-config');
-    providerConfigs.forEach(config => {
-        if (config.getAttribute('data-provider') === provider) {
-            config.classList.add('active');
-        } else {
-            config.classList.remove('active');
-        }
-    });
+  const providerConfigs = document.querySelectorAll(".provider-config");
+  providerConfigs.forEach((config) => {
+    if (config.getAttribute("data-provider") === provider) {
+      config.classList.add("active");
+    } else {
+      config.classList.remove("active");
+    }
+  });
 }
 
+/**
+ * Creates and appends an input field for an array item.
+ * @param {string} key - The configuration key for the array.
+ * @param {string} value - The initial value for the input field.
+ * @param {boolean} isSensitive - Whether the input is for sensitive data.
+ * @param {string|null} modelId - Optional model ID for thinking models.
+ * @returns {HTMLInputElement} The created input element.
+ */
+function createArrayInput(key, value, isSensitive, modelId = null) {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.name = `${key}[]`; // Used for form submission if not handled by JS
+  input.value = value;
+  let inputClasses = `${ARRAY_INPUT_CLASS} flex-grow px-3 py-2 border-none rounded-l-md focus:outline-none`;
+  if (isSensitive) {
+    inputClasses += ` ${SENSITIVE_INPUT_CLASS}`;
+  }
+  input.className = inputClasses;
+  if (modelId) {
+    input.setAttribute("data-model-id", modelId);
+    input.placeholder = "思考模型名称";
+  }
+  return input;
+}
 
-// 添加数组项
+/**
+ * Creates a generate token button for allowed tokens.
+ * @returns {HTMLButtonElement} The created button element.
+ */
+function createGenerateTokenButton() {
+  const generateBtn = document.createElement("button");
+  generateBtn.type = "button";
+  generateBtn.className =
+    "generate-btn px-2 py-2 text-gray-500 hover:text-primary-600 focus:outline-none rounded-r-md bg-gray-100 hover:bg-gray-200 transition-colors";
+  generateBtn.innerHTML = '<i class="fas fa-dice"></i>';
+  generateBtn.title = "生成随机令牌";
+  // Event listener will be added via delegation in DOMContentLoaded
+  return generateBtn;
+}
+
+/**
+ * Creates a remove button for an array item.
+ * @returns {HTMLButtonElement} The created button element.
+ */
+function createRemoveButton() {
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className =
+    "remove-btn text-gray-400 hover:text-red-500 focus:outline-none transition-colors duration-150";
+  removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+  removeBtn.title = "删除";
+  // Event listener will be added via delegation in DOMContentLoaded
+  return removeBtn;
+}
+
+/**
+ * Adds a new item to an array configuration section (e.g., API_KEYS, ALLOWED_TOKENS).
+ * This function is typically called by a "+" button.
+ * @param {string} key - The configuration key for the array (e.g., 'API_KEYS').
+ */
 function addArrayItem(key) {
-    const container = document.getElementById(`${key}_container`);
-    if (!container) return;
+  const container = document.getElementById(`${key}_container`);
+  if (!container) return;
 
-    const newItemValue = ''; // Start with an empty value for new items
-    const modelId = addArrayItemWithValue(key, newItemValue); // Add the DOM element
+  const newItemValue = ""; // New items start empty
+  const modelId = addArrayItemWithValue(key, newItemValue); // This adds the DOM element
 
-    // If it's a thinking model, also add the corresponding budget map item
-    if (key === 'THINKING_MODELS' && modelId) {
-        createAndAppendBudgetMapItem(newItemValue, 0, modelId); // Default budget 0
-    }
+  if (key === "THINKING_MODELS" && modelId) {
+    createAndAppendBudgetMapItem(newItemValue, 0, modelId); // Default budget 0
+  }
 }
 
-// 添加带值的数组项 (Adds array item DOM, returns modelId if it's a thinking model)
+/**
+ * Adds an array item with a specific value to the DOM.
+ * This is used both for initially populating the form and for adding new items.
+ * @param {string} key - The configuration key (e.g., 'API_KEYS', 'THINKING_MODELS').
+ * @param {string} value - The value for the array item.
+ * @returns {string|null} The generated modelId if it's a thinking model, otherwise null.
+ */
 function addArrayItemWithValue(key, value) {
-    const container = document.getElementById(`${key}_container`);
-    if (!container) return null;
+  const container = document.getElementById(`${key}_container`);
+  if (!container) return null;
 
-    const isThinkingModel = key === 'THINKING_MODELS';
-    const modelId = isThinkingModel ? generateUUID() : null;
+  const isThinkingModel = key === "THINKING_MODELS";
+  const isAllowedToken = key === "ALLOWED_TOKENS";
+  const isSensitive = key === "API_KEYS" || isAllowedToken;
+  const modelId = isThinkingModel ? generateUUID() : null;
 
-    const arrayItem = document.createElement('div');
-    // 主容器使用 Flexbox
-    arrayItem.className = 'array-item flex items-center mb-2 gap-2'; // 添加 gap-2 来分隔元素
-    if (isThinkingModel) {
-        arrayItem.setAttribute('data-model-id', modelId); // 添加ID属性
+  const arrayItem = document.createElement("div");
+  arrayItem.className = `${ARRAY_ITEM_CLASS} flex items-center mb-2 gap-2`;
+  if (isThinkingModel) {
+    arrayItem.setAttribute("data-model-id", modelId);
+  }
+
+  const inputWrapper = document.createElement("div");
+  inputWrapper.className =
+    "flex items-center flex-grow border border-gray-300 rounded-md focus-within:border-primary-500 focus-within:ring focus-within:ring-primary-200 focus-within:ring-opacity-50";
+
+  const input = createArrayInput(
+    key,
+    value,
+    isSensitive,
+    isThinkingModel ? modelId : null
+  );
+  inputWrapper.appendChild(input);
+
+  if (isAllowedToken) {
+    const generateBtn = createGenerateTokenButton();
+    inputWrapper.appendChild(generateBtn);
+  } else {
+    // Ensure right-side rounding if no button is present
+    input.classList.add("rounded-r-md");
+  }
+
+  const removeBtn = createRemoveButton();
+
+  arrayItem.appendChild(inputWrapper);
+  arrayItem.appendChild(removeBtn);
+  container.appendChild(arrayItem);
+
+  // Initialize sensitive field if applicable
+  if (isSensitive && input.value) {
+    if (configForm && typeof initializeSensitiveFields === "function") {
+      const focusoutEvent = new Event("focusout", {
+        bubbles: true,
+        cancelable: true,
+      });
+      input.dispatchEvent(focusoutEvent);
     }
-
-
-    // 创建一个包装器 div 来包含输入框和生成按钮
-    const inputWrapper = document.createElement('div');
-    // 这个包装器占据主要空间，并使用 Flexbox
-    inputWrapper.className = 'flex items-center flex-grow border border-gray-300 rounded-md focus-within:border-primary-500 focus-within:ring focus-within:ring-primary-200 focus-within:ring-opacity-50';
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.name = `${key}[]`;
-    input.value = value;
-    // 输入框占据包装器内的主要空间，移除边框和圆角，因为包装器已有
-    input.className = 'array-input flex-grow px-3 py-2 border-none rounded-l-md focus:outline-none'; // 移除右侧圆角
-    if (isThinkingModel) {
-         input.setAttribute('data-model-id', modelId); // 添加ID属性
-         input.placeholder = '思考模型名称'; // 添加占位符
-    }
-
-
-    inputWrapper.appendChild(input); // 将输入框添加到包装器
-
-    // 只为 ALLOWED_TOKENS 添加生成按钮
-    if (key === 'ALLOWED_TOKENS') {
-        const generateBtn = document.createElement('button');
-        generateBtn.type = 'button';
-        // 按钮样式，放在输入框右侧，有背景和内边距，调整颜色
-        generateBtn.className = 'generate-btn px-2 py-2 text-gray-500 hover:text-primary-600 focus:outline-none rounded-r-md bg-gray-100 hover:bg-gray-200 transition-colors'; // 添加背景和右侧圆角
-        generateBtn.innerHTML = '<i class="fas fa-dice"></i>';
-        generateBtn.title = '生成随机令牌';
-        generateBtn.addEventListener('click', function() {
-            const newToken = generateRandomToken();
-            input.value = newToken;
-            showNotification('已生成新令牌', 'success');
-        });
-        inputWrapper.appendChild(generateBtn); // 将生成按钮添加到包装器
-    } else {
-        // 如果不是 ALLOWED_TOKENS，确保输入框有右侧圆角
-        input.classList.add('rounded-r-md');
-    }
-
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    // 删除按钮样式，保持不变
-    removeBtn.className = 'remove-btn text-gray-400 hover:text-red-500 focus:outline-none transition-colors duration-150';
-    removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
-    removeBtn.title = '删除';
-    removeBtn.addEventListener('click', function() {
-        const currentArrayItem = this.closest('.array-item');
-        if (isThinkingModel) {
-            const currentModelId = currentArrayItem.getAttribute('data-model-id');
-            // 查找并删除对应的预算映射项
-            const budgetMapItem = document.querySelector(`.map-item[data-model-id="${currentModelId}"]`);
-            if (budgetMapItem) {
-                budgetMapItem.remove();
-                 // 检查预算映射容器是否为空，如果是，则添加回占位符
-                const budgetContainer = document.getElementById('THINKING_BUDGET_MAP_container');
-                if (budgetContainer && budgetContainer.children.length === 0) {
-                    budgetContainer.innerHTML = '<div class="text-gray-500 text-sm italic">请在上方添加思考模型，预算将自动关联。</div>';
-                }
-            }
-        }
-        currentArrayItem.remove(); // 删除模型项本身
-    });
-
-    // 将包装器（包含输入框和可能的生成按钮）和删除按钮添加到主容器
-    arrayItem.appendChild(inputWrapper);
-    arrayItem.appendChild(removeBtn);
-
-    // 插入到容器末尾
-    container.appendChild(arrayItem);
-
-    // 返回生成的 ID (如果是思考模型) 或 null
-    return isThinkingModel ? modelId : null;
-    // Note: This function no longer automatically calls createAndAppendBudgetMapItem
+  }
+  return isThinkingModel ? modelId : null;
 }
 
-
-// --- 新增：专门用于创建和添加预算映射 DOM 元素 ---
+/**
+ * Creates and appends a DOM element for a thinking model's budget mapping.
+ * @param {string} mapKey - The model name (key for the map).
+ * @param {number|string} mapValue - The budget value.
+ * @param {string} modelId - The unique ID of the corresponding thinking model.
+ */
 function createAndAppendBudgetMapItem(mapKey, mapValue, modelId) {
-   const container = document.getElementById('THINKING_BUDGET_MAP_container');
-   if (!container) {
-       console.error("Cannot add budget item: THINKING_BUDGET_MAP_container not found!");
-       return;
-   }
+  const container = document.getElementById("THINKING_BUDGET_MAP_container");
+  if (!container) {
+    console.error(
+      "Cannot add budget item: THINKING_BUDGET_MAP_container not found!"
+    );
+    return;
+  }
 
-   // If container currently only has the placeholder, clear it
-   const placeholder = container.querySelector('.text-gray-500.italic');
-   // Check if the only child is the placeholder before clearing
-   if (placeholder && container.children.length === 1 && container.firstChild === placeholder) {
-       container.innerHTML = '';
-   }
+  // If container currently only has the placeholder, clear it
+  const placeholder = container.querySelector(".text-gray-500.italic");
+  // Check if the only child is the placeholder before clearing
+  if (
+    placeholder &&
+    container.children.length === 1 &&
+    container.firstChild === placeholder
+  ) {
+    container.innerHTML = "";
+  }
 
-   const mapItem = document.createElement('div');
-   mapItem.className = 'map-item flex items-center mb-2 gap-2';
-   mapItem.setAttribute('data-model-id', modelId); // Add ID attribute
+  const mapItem = document.createElement("div");
+  mapItem.className = `${MAP_ITEM_CLASS} flex items-center mb-2 gap-2`;
+  mapItem.setAttribute("data-model-id", modelId);
 
-   // Key Input (Model Name) - Read-only
-   const keyInput = document.createElement('input');
-   keyInput.type = 'text';
-   keyInput.value = mapKey;
-   keyInput.placeholder = '模型名称 (自动关联)';
-   keyInput.readOnly = true;
-   keyInput.className = 'map-key-input flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none bg-gray-100 text-gray-500';
-   keyInput.setAttribute('data-model-id', modelId);
+  const keyInput = document.createElement("input");
+  keyInput.type = "text";
+  keyInput.value = mapKey;
+  keyInput.placeholder = "模型名称 (自动关联)";
+  keyInput.readOnly = true;
+  keyInput.className = `${MAP_KEY_INPUT_CLASS} flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none bg-gray-100 text-gray-500`;
+  keyInput.setAttribute("data-model-id", modelId);
 
-   // Value Input (Budget) - Integer
-   const valueInput = document.createElement('input');
-   valueInput.type = 'number';
-   // Ensure mapValue is treated as integer, default to 0 if invalid
-   const intValue = parseInt(mapValue, 10);
-   valueInput.value = isNaN(intValue) ? 0 : intValue;
-   valueInput.placeholder = '预算 (整数)';
-   valueInput.className = 'map-value-input w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50';
-   valueInput.min = 0; // 添加最小值
-   valueInput.max = 24576; // 添加最大值
-   valueInput.addEventListener('input', function() {
-        // 限制输入为0到24576之间的整数
-        let value = this.value.replace(/[^0-9]/g, '');
-        if (value !== '') {
-            value = parseInt(value, 10);
-            if (value < 0) value = 0;
-            if (value > 24576) value = 24576;
-        }
-        this.value = value;
-   });
+  const valueInput = document.createElement("input");
+  valueInput.type = "number";
+  const intValue = parseInt(mapValue, 10);
+  valueInput.value = isNaN(intValue) ? 0 : intValue;
+  valueInput.placeholder = "预算 (整数)";
+  valueInput.className = `${MAP_VALUE_INPUT_CLASS} w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50`;
+  valueInput.min = 0;
+  valueInput.max = 24576;
+  valueInput.addEventListener("input", function () {
+    let val = this.value.replace(/[^0-9]/g, "");
+    if (val !== "") {
+      val = parseInt(val, 10);
+      if (val < 0) val = 0;
+      if (val > 24576) val = 24576;
+    }
+    this.value = val; // Corrected variable name
+  });
 
-   // Remove Button - Removed for budget map items
-   // const removeBtn = document.createElement('button');
-   // removeBtn.type = 'button';
-   // removeBtn.className = 'remove-btn text-gray-300 cursor-not-allowed focus:outline-none'; // Kept original class for reference
-   // removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
-   // removeBtn.title = '请从上方模型列表删除';
-   // removeBtn.disabled = true;
+  // Remove Button - Removed for budget map items
+  // const removeBtn = document.createElement('button');
+  // removeBtn.type = 'button';
+  // removeBtn.className = 'remove-btn text-gray-300 cursor-not-allowed focus:outline-none'; // Kept original class for reference
+  // removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+  // removeBtn.title = '请从上方模型列表删除';
+  // removeBtn.disabled = true;
 
-   mapItem.appendChild(keyInput);
-   mapItem.appendChild(valueInput);
-   // mapItem.appendChild(removeBtn); // Do not append the remove button
+  mapItem.appendChild(keyInput);
+  mapItem.appendChild(valueInput);
+  // mapItem.appendChild(removeBtn); // Do not append the remove button
 
-   container.appendChild(mapItem);
+  container.appendChild(mapItem);
 }
-// --- 结束：专门的预算映射项创建函数 ---
 
-
-// 收集表单数据
+/**
+ * Collects all data from the configuration form.
+ * @returns {object} An object containing all configuration data.
+ */
 function collectFormData() {
-    const formData = {};
+  const formData = {};
 
-    // 处理普通输入
-    const inputs = document.querySelectorAll('input[type="text"], input[type="number"], select');
-    inputs.forEach(input => {
-        if (!input.name.includes('[]')) {
-            if (input.type === 'number') {
-                formData[input.name] = parseFloat(input.value);
-            } else {
-                // 确保 select 元素的值也被正确收集
-                formData[input.name] = input.value;
-            }
+  // 处理普通输入和 select
+  const inputsAndSelects = document.querySelectorAll(
+    'input[type="text"], input[type="number"], input[type="password"], select, textarea'
+  );
+  inputsAndSelects.forEach((element) => {
+    if (
+      element.name &&
+      !element.name.includes("[]") &&
+      !element.closest(".array-container") &&
+      !element.closest(`.${MAP_ITEM_CLASS}`) &&
+      !element.closest(`.${SAFETY_SETTING_ITEM_CLASS}`)
+    ) {
+      if (element.type === "number") {
+        formData[element.name] = parseFloat(element.value);
+      } else if (
+        element.classList.contains(SENSITIVE_INPUT_CLASS) &&
+        element.hasAttribute("data-real-value")
+      ) {
+        formData[element.name] = element.getAttribute("data-real-value");
+      } else {
+        formData[element.name] = element.value;
+      }
+    }
+  });
+
+  const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+  checkboxes.forEach((checkbox) => {
+    formData[checkbox.name] = checkbox.checked;
+  });
+
+  const arrayContainers = document.querySelectorAll(".array-container");
+  arrayContainers.forEach((container) => {
+    const key = container.id.replace("_container", "");
+    const arrayInputs = container.querySelectorAll(`.${ARRAY_INPUT_CLASS}`);
+    formData[key] = Array.from(arrayInputs)
+      .map((input) => {
+        if (
+          input.classList.contains(SENSITIVE_INPUT_CLASS) &&
+          input.hasAttribute("data-real-value")
+        ) {
+          return input.getAttribute("data-real-value");
         }
-    });
+        return input.value;
+      })
+      .filter(
+        (value) => value && value.trim() !== "" && value !== MASKED_VALUE
+      ); // Ensure MASKED_VALUE is also filtered if not handled
+  });
 
-    // 处理复选框
-    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-    checkboxes.forEach(checkbox => {
-        formData[checkbox.name] = checkbox.checked;
+  const budgetMapContainer = document.getElementById(
+    "THINKING_BUDGET_MAP_container"
+  );
+  if (budgetMapContainer) {
+    formData["THINKING_BUDGET_MAP"] = {};
+    const mapItems = budgetMapContainer.querySelectorAll(`.${MAP_ITEM_CLASS}`);
+    mapItems.forEach((item) => {
+      const keyInput = item.querySelector(`.${MAP_KEY_INPUT_CLASS}`);
+      const valueInput = item.querySelector(`.${MAP_VALUE_INPUT_CLASS}`);
+      if (keyInput && valueInput && keyInput.value.trim() !== "") {
+        const budgetValue = parseInt(valueInput.value, 10);
+        formData["THINKING_BUDGET_MAP"][keyInput.value.trim()] = isNaN(
+          budgetValue
+        )
+          ? 0
+          : budgetValue;
+      }
     });
+  }
 
-    // 处理数组
-    const arrayContainers = document.querySelectorAll('.array-container');
-    arrayContainers.forEach(container => {
-        const key = container.id.replace('_container', '');
-        const arrayInputs = container.querySelectorAll('.array-input');
-        formData[key] = Array.from(arrayInputs).map(input => input.value).filter(value => value.trim() !== '');
-    });
-
-    // --- 新增：处理 THINKING_BUDGET_MAP ---
-    const budgetMapContainer = document.getElementById('THINKING_BUDGET_MAP_container');
-    if (budgetMapContainer) {
-        formData['THINKING_BUDGET_MAP'] = {};
-        const mapItems = budgetMapContainer.querySelectorAll('.map-item');
-        mapItems.forEach(item => {
-            const keyInput = item.querySelector('.map-key-input');
-            const valueInput = item.querySelector('.map-value-input');
-            if (keyInput && valueInput && keyInput.value.trim() !== '') {
-                // 将预算值解析为整数
-                const budgetValue = parseInt(valueInput.value, 10); // 使用基数10
-                // 检查是否为有效数字，如果不是则默认为 0
-                formData['THINKING_BUDGET_MAP'][keyInput.value.trim()] = isNaN(budgetValue) ? 0 : budgetValue;
-            }
+  if (safetySettingsContainer) {
+    formData["SAFETY_SETTINGS"] = [];
+    const settingItems = safetySettingsContainer.querySelectorAll(
+      `.${SAFETY_SETTING_ITEM_CLASS}`
+    );
+    settingItems.forEach((item) => {
+      const categorySelect = item.querySelector(".safety-category-select");
+      const thresholdSelect = item.querySelector(".safety-threshold-select");
+      if (
+        categorySelect &&
+        thresholdSelect &&
+        categorySelect.value &&
+        thresholdSelect.value
+      ) {
+        formData["SAFETY_SETTINGS"].push({
+          category: categorySelect.value,
+          threshold: thresholdSelect.value,
         });
-    }
-    // --- 结束：处理 THINKING_BUDGET_MAP ---
+      }
+    });
+  }
 
-    // --- 新增：处理 SAFETY_SETTINGS ---
-    if (safetySettingsContainer) {
-        formData['SAFETY_SETTINGS'] = [];
-        const settingItems = safetySettingsContainer.querySelectorAll('.safety-setting-item');
-        settingItems.forEach(item => {
-            const categorySelect = item.querySelector('.safety-category-select');
-            const thresholdSelect = item.querySelector('.safety-threshold-select');
-            if (categorySelect && thresholdSelect && categorySelect.value && thresholdSelect.value) {
-                formData['SAFETY_SETTINGS'].push({
-                    category: categorySelect.value,
-                    threshold: thresholdSelect.value
-                });
-            }
-        });
-    }
-    // --- 结束：处理 SAFETY_SETTINGS ---
+  // --- 新增：收集自动删除错误日志的配置 ---
+  const autoDeleteEnabledCheckbox = document.getElementById(
+    "AUTO_DELETE_ERROR_LOGS_ENABLED"
+  );
+  if (autoDeleteEnabledCheckbox) {
+    formData["AUTO_DELETE_ERROR_LOGS_ENABLED"] =
+      autoDeleteEnabledCheckbox.checked;
+  }
 
-    return formData;
+  const autoDeleteDaysSelect = document.getElementById(
+    "AUTO_DELETE_ERROR_LOGS_DAYS"
+  );
+  if (autoDeleteDaysSelect) {
+    // 如果复选框未选中，则不应提交天数，或者可以提交一个默认/无效值，
+    // 但后端应该只在 ENABLED 为 true 时才关心 DAYS。
+    // 这里我们总是收集它，后端逻辑会处理。
+    formData["AUTO_DELETE_ERROR_LOGS_DAYS"] = parseInt(
+      autoDeleteDaysSelect.value,
+      10
+    );
+  }
+  // --- 结束：收集自动删除错误日志的配置 ---
+
+  // --- 新增：收集自动删除请求日志的配置 ---
+  const autoDeleteRequestEnabledCheckbox = document.getElementById(
+    "AUTO_DELETE_REQUEST_LOGS_ENABLED"
+  );
+  if (autoDeleteRequestEnabledCheckbox) {
+    formData["AUTO_DELETE_REQUEST_LOGS_ENABLED"] =
+      autoDeleteRequestEnabledCheckbox.checked;
+  }
+
+  const autoDeleteRequestDaysSelect = document.getElementById(
+    "AUTO_DELETE_REQUEST_LOGS_DAYS"
+  );
+  if (autoDeleteRequestDaysSelect) {
+    formData["AUTO_DELETE_REQUEST_LOGS_DAYS"] = parseInt(
+      autoDeleteRequestDaysSelect.value,
+      10
+    );
+  }
+  // --- 结束：收集自动删除请求日志的配置 ---
+
+  return formData;
 }
 
-// 辅助函数：停止定时任务
+/**
+ * Stops the scheduler task on the server.
+ */
 async function stopScheduler() {
-    try {
-        const response = await fetch('/api/scheduler/stop', { method: 'POST' });
-        if (!response.ok) {
-            console.warn(`停止定时任务失败: ${response.status}`);
-        } else {
-            console.log('定时任务已停止');
-        }
-    } catch (error) {
-        console.error('调用停止定时任务API时出错:', error);
-    }
-}
-
-// 辅助函数：启动定时任务
-async function startScheduler() {
-    try {
-        const response = await fetch('/api/scheduler/start', { method: 'POST' });
-        if (!response.ok) {
-            console.warn(`启动定时任务失败: ${response.status}`);
-        } else {
-            console.log('定时任务已启动');
-        }
-    } catch (error) {
-        console.error('调用启动定时任务API时出错:', error);
-    }
-}
-
-// 保存配置
-async function saveConfig() {
-    try {
-        const formData = collectFormData();
-
-        showNotification('正在保存配置...', 'info');
-
-        // 1. 停止定时任务
-        await stopScheduler();
-
-        const response = await fetch('/api/config', {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(formData)
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-
-        // 移除居中的 saveStatus 提示
-
-        showNotification('配置保存成功', 'success');
-
-        // 3. 启动新的定时任务
-        await startScheduler();
-
-    } catch (error) {
-        console.error('保存配置失败:', error);
-        // 保存失败时，也尝试重启定时任务，以防万一
-        await startScheduler();
-        // 移除居中的 saveStatus 提示
-
-        showNotification('保存配置失败: ' + error.message, 'error');
-    }
-}
-
-// 重置配置 (现在只负责打开模态框)
-function resetConfig(event) {
-    // 阻止事件冒泡和默认行为
-    if (event) {
-        event.preventDefault();
-        event.stopPropagation();
-    }
-
-    console.log('resetConfig called. Event target:', event ? event.target.id : 'No event');
-
-    // 确保只有当事件来自重置按钮时才显示模态框
-    if (!event || event.target.id === 'resetBtn' || event.currentTarget.id === 'resetBtn') {
-        const resetConfirmModal = document.getElementById('resetConfirmModal');
-        if (resetConfirmModal) {
-            resetConfirmModal.classList.add('show');
-        } else {
-            // Fallback if modal doesn't exist for some reason
-            console.error("Reset confirmation modal not found! Falling back to default confirm.");
-            // Fallback to original confirm behavior
-            if (!confirm('确定要重置所有配置吗？这将恢复到默认值。')) {
-                return;
-            }
-            // If confirmed, proceed with the reset logic directly (less ideal)
-            executeReset();
-        }
-    }
-}
-
-// --- 新增：将实际重置逻辑提取到一个单独的函数 ---
-async function executeReset() {
-    try {
-        showNotification('正在重置配置...', 'info');
-
-        // 1. 停止定时任务
-        await stopScheduler();
-        const response = await fetch('/api/config/reset', { method: 'POST' });
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const config = await response.json();
-        populateForm(config);
-        showNotification('配置已重置为默认值', 'success');
-
-        // 3. 启动新的定时任务
-        await startScheduler();
-
-    } catch (error) {
-        console.error('重置配置失败:', error);
-        showNotification('重置配置失败: ' + error.message, 'error');
-        // 重置失败时，也尝试重启定时任务
-        await startScheduler();
-    }
-}
-// 显示通知
-function showNotification(message, type = 'info') {
-    const notification = document.getElementById('notification');
-    notification.textContent = message;
-
-    // 统一样式为黑色半透明，与 keys_status.js 保持一致
-    notification.classList.remove('bg-danger-500');
-    notification.classList.add('bg-black');
-    notification.style.backgroundColor = 'rgba(0,0,0,0.8)';
-    notification.style.color = '#fff';
-
-    // 应用过渡效果
-    notification.style.opacity = "1";
-    notification.style.transform = "translate(-50%, 0)";
-
-    // 设置自动消失
-    setTimeout(() => {
-        notification.style.opacity = "0";
-        notification.style.transform = "translate(-50%, 10px)";
-    }, 3000);
-}
-
-// 刷新页面
-function refreshPage(button) {
-    button.classList.add('loading');
-    location.reload();
-}
-
-// 滚动到顶部
-function scrollToTop() {
-    window.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-    });
-}
-
-// 滚动到底部
-function scrollToBottom() {
-    window.scrollTo({
-        top: document.body.scrollHeight,
-        behavior: 'smooth'
-    });
-}
-
-// 切换滚动按钮显示
-function toggleScrollButtons() {
-    const scrollButtons = document.querySelector('.scroll-buttons');
-
-    if (window.scrollY > 200) {
-        scrollButtons.style.display = 'flex';
+  try {
+    const response = await fetch("/api/scheduler/stop", { method: "POST" });
+    if (!response.ok) {
+      console.warn(`停止定时任务失败: ${response.status}`);
     } else {
-        scrollButtons.style.display = 'none';
+      console.log("定时任务已停止");
     }
+  } catch (error) {
+    console.error("调用停止定时任务API时出错:", error);
+  }
 }
 
-// --- 新增：生成随机令牌函数 ---
+/**
+ * Starts the scheduler task on the server.
+ */
+async function startScheduler() {
+  try {
+    const response = await fetch("/api/scheduler/start", { method: "POST" });
+    if (!response.ok) {
+      console.warn(`启动定时任务失败: ${response.status}`);
+    } else {
+      console.log("定时任务已启动");
+    }
+  } catch (error) {
+    console.error("调用启动定时任务API时出错:", error);
+  }
+}
+
+/**
+ * Saves the current configuration to the server.
+ */
+async function saveConfig() {
+  try {
+    const formData = collectFormData();
+
+    showNotification("正在保存配置...", "info");
+
+    // 1. 停止定时任务
+    await stopScheduler();
+
+    const response = await fetch("/api/config", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(formData),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(
+        errorData.detail || `HTTP error! status: ${response.status}`
+      );
+    }
+
+    const result = await response.json();
+
+    // 移除居中的 saveStatus 提示
+
+    showNotification("配置保存成功", "success");
+
+    // 3. 启动新的定时任务
+    await startScheduler();
+  } catch (error) {
+    console.error("保存配置失败:", error);
+    // 保存失败时，也尝试重启定时任务，以防万一
+    await startScheduler();
+    // 移除居中的 saveStatus 提示
+
+    showNotification("保存配置失败: " + error.message, "error");
+  }
+}
+
+/**
+ * Initiates the configuration reset process by showing a confirmation modal.
+ * @param {Event} [event] - The click event, if triggered by a button.
+ */
+function resetConfig(event) {
+  // 阻止事件冒泡和默认行为
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  console.log(
+    "resetConfig called. Event target:",
+    event ? event.target.id : "No event"
+  );
+
+  // Ensure modal is shown only if the event comes from the reset button
+  if (
+    !event ||
+    event.target.id === "resetBtn" ||
+    (event.currentTarget && event.currentTarget.id === "resetBtn")
+  ) {
+    if (resetConfirmModal) {
+      openModal(resetConfirmModal);
+    } else {
+      console.error(
+        "Reset confirmation modal not found! Falling back to default confirm."
+      );
+      if (confirm("确定要重置所有配置吗？这将恢复到默认值。")) {
+        executeReset();
+      }
+    }
+  }
+}
+
+/**
+ * Executes the actual configuration reset after confirmation.
+ */
+async function executeReset() {
+  try {
+    showNotification("正在重置配置...", "info");
+
+    // 1. 停止定时任务
+    await stopScheduler();
+    const response = await fetch("/api/config/reset", { method: "POST" });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const config = await response.json();
+    populateForm(config);
+    // Re-initialize masking for sensitive fields after reset
+    if (configForm && typeof initializeSensitiveFields === "function") {
+      const sensitiveFields = configForm.querySelectorAll(
+        `.${SENSITIVE_INPUT_CLASS}`
+      );
+      sensitiveFields.forEach((field) => {
+        if (field.type === "password") {
+          if (field.value) field.setAttribute("data-real-value", field.value);
+        } else if (
+          field.type === "text" ||
+          field.tagName.toLowerCase() === "textarea"
+        ) {
+          const focusoutEvent = new Event("focusout", {
+            bubbles: true,
+            cancelable: true,
+          });
+          field.dispatchEvent(focusoutEvent);
+        }
+      });
+    }
+    showNotification("配置已重置为默认值", "success");
+
+    // 3. 启动新的定时任务
+    await startScheduler();
+  } catch (error) {
+    console.error("重置配置失败:", error);
+    showNotification("重置配置失败: " + error.message, "error");
+    // 重置失败时，也尝试重启定时任务
+    await startScheduler();
+  }
+}
+
+/**
+ * Displays a notification message to the user.
+ * @param {string} message - The message to display.
+ * @param {string} [type='info'] - The type of notification ('info', 'success', 'error', 'warning').
+ */
+function showNotification(message, type = "info") {
+  const notification = document.getElementById("notification");
+  notification.textContent = message;
+
+  // 统一样式为黑色半透明，与 keys_status.js 保持一致
+  notification.classList.remove("bg-danger-500");
+  notification.classList.add("bg-black");
+  notification.style.backgroundColor = "rgba(0,0,0,0.8)";
+  notification.style.color = "#fff";
+
+  // 应用过渡效果
+  notification.style.opacity = "1";
+  notification.style.transform = "translate(-50%, 0)";
+
+  // 设置自动消失
+  setTimeout(() => {
+    notification.style.opacity = "0";
+    notification.style.transform = "translate(-50%, 10px)";
+  }, 3000);
+}
+
+/**
+ * Refreshes the current page.
+ * @param {HTMLButtonElement} [button] - The button that triggered the refresh (to show loading state).
+ */
+function refreshPage(button) {
+  if (button) button.classList.add("loading");
+  location.reload();
+}
+
+/**
+ * Scrolls the page to the top.
+ */
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+/**
+ * Scrolls the page to the bottom.
+ */
+function scrollToBottom() {
+  window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+}
+
+/**
+ * Toggles the visibility of scroll-to-top/bottom buttons based on scroll position.
+ */
+function toggleScrollButtons() {
+  const scrollButtons = document.querySelector(".scroll-buttons");
+  if (scrollButtons) {
+    scrollButtons.style.display = window.scrollY > 200 ? "flex" : "none";
+  }
+}
+
+/**
+ * Generates a random token string.
+ * @returns {string} A randomly generated token.
+ */
 function generateRandomToken() {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_';
-    const length = 48;
-    let result = 'sk-';
-    const charactersLength = characters.length;
-    for (let i = 0; i < length; i++) {
-        result += characters.charAt(Math.floor(Math.random() * charactersLength));
-    }
-    return result;
+  const characters =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_";
+  const length = 48;
+  let result = "sk-";
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  return result;
 }
-// --- 结束：生成随机令牌函数 ---
 
+/**
+ * Adds a new safety setting item to the DOM.
+ * @param {string} [category=''] - The initial category for the setting.
+ * @param {string} [threshold=''] - The initial threshold for the setting.
+ */
+function addSafetySettingItem(category = "", threshold = "") {
+  const container = document.getElementById("SAFETY_SETTINGS_container");
+  if (!container) {
+    console.error(
+      "Cannot add safety setting: SAFETY_SETTINGS_container not found!"
+    );
+    return;
+  }
 
-// Deprecated: This function is now effectively replaced by createAndAppendBudgetMapItem
-// for the initial population logic. It delegates to the new function if called.
-function addBudgetMapItemWithValue(mapKey, mapValue, modelId) {
-    // console.warn("Deprecated call to addBudgetMapItemWithValue, use createAndAppendBudgetMapItem instead for population.");
-    // Delegate to the new function which handles DOM creation
-    createAndAppendBudgetMapItem(mapKey, mapValue, modelId);
+  // 如果容器当前只有占位符，则清除它
+  const placeholder = container.querySelector(".text-gray-500.italic");
+  if (
+    placeholder &&
+    container.children.length === 1 &&
+    container.firstChild === placeholder
+  ) {
+    container.innerHTML = "";
+  }
+
+  const harmCategories = [
+    "HARM_CATEGORY_HARASSMENT",
+    "HARM_CATEGORY_HATE_SPEECH",
+    "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+    "HARM_CATEGORY_DANGEROUS_CONTENT",
+    "HARM_CATEGORY_CIVIC_INTEGRITY", // 根据需要添加或移除
+  ];
+  const harmThresholds = [
+    "BLOCK_NONE",
+    "BLOCK_LOW_AND_ABOVE",
+    "BLOCK_MEDIUM_AND_ABOVE",
+    "BLOCK_ONLY_HIGH",
+    "OFF", // 根据 Google API 文档添加或移除
+  ];
+
+  const settingItem = document.createElement("div");
+  settingItem.className = `${SAFETY_SETTING_ITEM_CLASS} flex items-center mb-2 gap-2`;
+
+  const categorySelect = document.createElement("select");
+  categorySelect.className =
+    "safety-category-select flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50 bg-white";
+  harmCategories.forEach((cat) => {
+    const option = document.createElement("option");
+    option.value = cat;
+    option.textContent = cat.replace("HARM_CATEGORY_", "");
+    if (cat === category) option.selected = true;
+    categorySelect.appendChild(option);
+  });
+
+  const thresholdSelect = document.createElement("select");
+  thresholdSelect.className =
+    "safety-threshold-select w-48 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50 bg-white";
+  harmThresholds.forEach((thr) => {
+    const option = document.createElement("option");
+    option.value = thr;
+    option.textContent = thr.replace("BLOCK_", "").replace("_AND_ABOVE", "+");
+    if (thr === threshold) option.selected = true;
+    thresholdSelect.appendChild(option);
+  });
+
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className =
+    "remove-btn text-gray-400 hover:text-red-500 focus:outline-none transition-colors duration-150";
+  removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+  removeBtn.title = "删除此设置";
+  // Event listener for removeBtn is now handled by event delegation in DOMContentLoaded
+
+  settingItem.appendChild(categorySelect);
+  settingItem.appendChild(thresholdSelect);
+  settingItem.appendChild(removeBtn);
+
+  container.appendChild(settingItem);
 }
-/* --- 结束：(addBudgetMapItemWithValue 已弃用) --- */
-
-
-// --- 新增：添加安全设置项的函数 ---
-function addSafetySettingItem(category = '', threshold = '') {
-    const container = document.getElementById('SAFETY_SETTINGS_container');
-    if (!container) {
-        console.error("Cannot add safety setting: SAFETY_SETTINGS_container not found!");
-        return;
-    }
-
-    // 如果容器当前只有占位符，则清除它
-    const placeholder = container.querySelector('.text-gray-500.italic');
-    if (placeholder && container.children.length === 1 && container.firstChild === placeholder) {
-        container.innerHTML = '';
-    }
-
-    const harmCategories = [
-        "HARM_CATEGORY_HARASSMENT",
-        "HARM_CATEGORY_HATE_SPEECH",
-        "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-        "HARM_CATEGORY_DANGEROUS_CONTENT",
-        "HARM_CATEGORY_CIVIC_INTEGRITY" // 根据需要添加或移除
-    ];
-    const harmThresholds = [
-        "BLOCK_NONE",
-        "BLOCK_LOW_AND_ABOVE",
-        "BLOCK_MEDIUM_AND_ABOVE",
-        "BLOCK_ONLY_HIGH",
-        "OFF" // 根据 Google API 文档添加或移除
-    ];
-
-    const settingItem = document.createElement('div');
-    settingItem.className = 'safety-setting-item flex items-center mb-2 gap-2';
-
-    // Category Select
-    const categorySelect = document.createElement('select');
-    categorySelect.className = 'safety-category-select flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50 bg-white';
-    harmCategories.forEach(cat => {
-        const option = document.createElement('option');
-        option.value = cat;
-        option.textContent = cat.replace('HARM_CATEGORY_', ''); // 显示更友好的名称
-        if (cat === category) {
-            option.selected = true;
-        }
-        categorySelect.appendChild(option);
-    });
-
-    // Threshold Select
-    const thresholdSelect = document.createElement('select');
-    thresholdSelect.className = 'safety-threshold-select w-48 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50 bg-white';
-    harmThresholds.forEach(thr => {
-        const option = document.createElement('option');
-        option.value = thr;
-        option.textContent = thr.replace('BLOCK_', '').replace('_AND_ABOVE', '+'); // 简化显示
-        if (thr === threshold) {
-            option.selected = true;
-        }
-        thresholdSelect.appendChild(option);
-    });
-
-    // Remove Button
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'remove-btn text-gray-400 hover:text-red-500 focus:outline-none transition-colors duration-150';
-    removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
-    removeBtn.title = '删除此设置';
-    removeBtn.addEventListener('click', function() {
-        const currentItem = this.closest('.safety-setting-item');
-        currentItem.remove();
-        // 检查容器是否为空，如果是，则添加回占位符
-        if (container.children.length === 0) {
-            container.innerHTML = '<div class="text-gray-500 text-sm italic">定义模型的安全过滤阈值。</div>';
-        }
-    });
-
-    settingItem.appendChild(categorySelect);
-    settingItem.appendChild(thresholdSelect);
-    settingItem.appendChild(removeBtn);
-
-    container.appendChild(settingItem);
-}
-// --- 结束：添加安全设置项的函数 ---
-

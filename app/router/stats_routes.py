@@ -45,9 +45,6 @@ async def get_key_usage_details(key: str):
     try:
         usage_details = await stats_service.get_key_usage_details_last_24h(key)
         if usage_details is None:
-            # Handle case where key might be valid but has no recent usage,
-            # or if the service layer explicitly returns None for other reasons.
-            # Returning an empty dict is usually fine for the frontend.
             return {}
         return usage_details
     except Exception as e:

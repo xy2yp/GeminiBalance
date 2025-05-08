@@ -143,12 +143,14 @@ app/
 | 配置项                       | 说明                                                     | 默认值                             |
 | :--------------------------- | :------------------------------------------------------- | :---------------------------------------------------- |
 | **数据库配置**               |                                                          |                                                       |
-| `MYSQL_HOST`                 | 必填，MySQL 数据库主机地址                               | `localhost`                                           |
-| `MYSQL_SOCKET`               | 可选，MySQL 数据库 socket 地址                             | `/var/run/mysqld/mysqld.sock`                          |
-| `MYSQL_PORT`                 | 必填，MySQL 数据库端口                                   | `3306`                                                |
-| `MYSQL_USER`                 | 必填，MySQL 数据库用户名                                 | `your_db_user`                                        |
-| `MYSQL_PASSWORD`             | 必填，MySQL 数据库密码                                   | `your_db_password`                                    |
-| `MYSQL_DATABASE`             | 必填，MySQL 数据库名称                                   | `defaultdb`                                   |
+| `DATABASE_TYPE`              | 可选，数据库类型，支持 `mysql` 或 `sqlite`               | `mysql`                                              |
+| `SQLITE_DATABASE`            | 可选，当使用 `sqlite` 时必填，SQLite 数据库文件路径 | `default_db`                                         |
+| `MYSQL_HOST`                 | 当使用 `mysql` 时必填，MySQL 数据库主机地址    | `localhost`                                          |
+| `MYSQL_SOCKET`               | 可选，MySQL 数据库 socket 地址                          | `/var/run/mysqld/mysqld.sock`                        |
+| `MYSQL_PORT`                 | 当使用 `mysql` 时必填，MySQL 数据库端口        | `3306`                                               |
+| `MYSQL_USER`                 | 当使用 `mysql` 时必填，MySQL 数据库用户名      | `your_db_user`                                       |
+| `MYSQL_PASSWORD`             | 当使用 `mysql` 时必填，MySQL 数据库密码        | `your_db_password`                                   |
+| `MYSQL_DATABASE`             | 当使用 `mysql` 时必填，MySQL 数据库名称        | `defaultdb`                                          |
 | **API 相关配置**             |                                                          |                                                       |
 | `API_KEYS`                   | 必填，Gemini API 密钥列表，用于负载均衡                        | `["your-gemini-api-key-1", "your-gemini-api-key-2"]`  |
 | `ALLOWED_TOKENS`             | 必填，允许访问的 Token 列表                                    | `["your-access-token-1", "your-access-token-2"]`      |

@@ -13,7 +13,7 @@ from app.service.key.key_manager import get_key_manager_instance
 from app.database.connection import connect_to_db, disconnect_from_db
 from app.utils.helpers import get_current_version # Import from helpers
 from app.database.initialization import initialize_database
-from app.scheduler.key_checker import start_scheduler, stop_scheduler
+from app.scheduler.scheduled_tasks import start_scheduler, stop_scheduler
 from app.service.update.update_service import check_for_updates
 
 logger = get_application_logger()

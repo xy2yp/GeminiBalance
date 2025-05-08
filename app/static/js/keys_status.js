@@ -27,6 +27,49 @@ function copyToClipboard(text) {
     }
 }
 
+// API 调用辅助函数 (与 error_logs.js 中的版本类似)
+async function fetchAPI(url, options = {}) {
+    try {
+        const response = await fetch(url, options);
+
+        if (response.status === 204) {
+            return null; // Indicate success with no content for DELETE etc.
+        }
+
+        let responseData;
+        try {
+            // Clone the response to allow reading it multiple times if needed (e.g., for text fallback)
+            const clonedResponse = response.clone();
+            responseData = await response.json();
+        } catch (e) {
+             // If JSON parsing fails, try to get text, especially if response wasn't ok
+             if (!response.ok) {
+                 const textResponse = await response.text(); // Use original response for text
+                 throw new Error(textResponse || `HTTP error! status: ${response.status} - ${response.statusText}`);
+             }
+             // If response is ok but not JSON, maybe return raw text or handle differently
+             console.warn("Response was not JSON for URL:", url);
+             // Consider returning text or null based on expected non-JSON success cases
+             return await response.text(); // Example: return text for non-JSON success
+        }
+
+
+        if (!response.ok) {
+            // Prefer error message from API response body (already parsed as JSON)
+            const message = responseData?.detail || responseData?.message || responseData?.error || `HTTP error! status: ${response.status}`;
+            throw new Error(message);
+        }
+
+        return responseData; // Return parsed JSON data
+
+    } catch (error) {
+        console.error('API Call Failed:', error.message, 'URL:', url, 'Options:', options);
+        // Re-throw the error so the calling function knows the operation failed
+        // Add more context if possible
+        throw new Error(`API请求失败: ${error.message}`);
+    }
+}
+
 // 添加统计项动画效果
 function initStatItemAnimations() {
     const statItems = document.querySelectorAll('.stat-item');
@@ -132,7 +175,7 @@ function copyKey(key) {
         });
 }
 
-// 移除 showCopyStatus 函数，因为它已被 showNotification 替代
+// showCopyStatus 函数已废弃。
 
 async function verifyKey(key, button) {
     try {
@@ -142,13 +185,10 @@ async function verifyKey(key, button) {
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 验证中';
 
         try {
-            const response = await fetch(`/gemini/v1beta/verify-key/${key}`, {
-                method: 'POST'
-            });
-            const data = await response.json();
+            const data = await fetchAPI(`/gemini/v1beta/verify-key/${key}`, { method: 'POST' });
 
             // 根据验证结果更新UI并显示模态提示框
-            if (data.success || data.status === 'valid') {
+            if (data && (data.success || data.status === 'valid')) {
                 // 验证成功，显示成功结果
                 button.style.backgroundColor = '#27ae60';
                 // 使用结果模态框显示成功消息
@@ -161,9 +201,9 @@ async function verifyKey(key, button) {
                 // 使用结果模态框显示失败消息，改为true以在关闭时刷新
                 showResultModal(false, '密钥验证失败: ' + errorMsg, true);
             }
-        } catch (fetchError) {
-            console.error('API请求失败:', fetchError);
-            showResultModal(false, '验证请求失败: ' + fetchError.message, true); // 改为true以在关闭时刷新
+        } catch (apiError) {
+            console.error('密钥验证 API 请求失败:', apiError);
+            showResultModal(false, `验证请求失败: ${apiError.message}`, true);
         } finally {
             // 1秒后恢复按钮原始状态 (如果页面不刷新)
             // 由于现在成功和失败都会刷新，这部分逻辑可以简化或移除
@@ -193,10 +233,7 @@ async function resetKeyFailCount(key, button) {
         const originalHtml = button.innerHTML;
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 重置中';
 
-        const response = await fetch(`/gemini/v1beta/reset-fail-count/${key}`, {
-            method: 'POST'
-        });
-        const data = await response.json();
+        const data = await fetchAPI(`/gemini/v1beta/reset-fail-count/${key}`, { method: 'POST' });
 
         // 根据重置结果更新UI
         if (data.success) {
@@ -220,9 +257,9 @@ async function resetKeyFailCount(key, button) {
 
         // 恢复按钮状态逻辑已移至成功/失败分支内
 
-    } catch (error) {
-        console.error('重置失败:', error);
-        showNotification('重置请求失败: ' + error.message, 'error');
+    } catch (apiError) {
+        console.error('重置失败:', apiError);
+        showNotification(`重置请求失败: ${apiError.message}`, 'error');
         // 确保在捕获到错误时恢复按钮状态
         button.disabled = false;
         button.innerHTML = '<i class="fas fa-redo-alt"></i> 重置'; // 恢复原始图标和文本
@@ -508,29 +545,12 @@ async function executeResetAll(type) {
         resetButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 重置中';
 
         try {
-            // 调用新的后端 API 来重置选定的密钥
-            const response = await fetch(`/gemini/v1beta/reset-selected-fail-counts`, { // 假设的新 API 端点
+            const options = {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ keys: keysToReset, key_type: type }) // 发送密钥列表和类型
-            });
-
-            if (!response.ok) {
-                 // 尝试解析错误信息
-                 let errorMsg = `服务器返回错误: ${response.status}`;
-                 try {
-                     const errorData = await response.json();
-                     errorMsg = errorData.message || errorMsg;
-                 } catch (e) {
-                     // 如果解析失败，使用原始错误信息
-                 }
-
-                 throw new Error(errorMsg);
-            }
-
-            const data = await response.json();
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ keys: keysToReset, key_type: type })
+            };
+            const data = await fetchAPI(`/gemini/v1beta/reset-selected-fail-counts`, options);
 
             // 根据重置结果显示模态框
             if (data.success) {
@@ -543,9 +563,9 @@ async function executeResetAll(type) {
                 // 失败后不自动刷新页面，让用户看到错误信息
                 showResultModal(false, '批量重置失败: ' + errorMsg, false);
             }
-        } catch (fetchError) {
-            console.error('API请求失败:', fetchError);
-            showResultModal(false, '批量重置请求失败: ' + fetchError.message, false); // 失败后不自动刷新
+        } catch (apiError) {
+            console.error('批量重置 API 请求失败:', apiError);
+            showResultModal(false, `批量重置请求失败: ${apiError.message}`, false);
         } finally {
             // 恢复按钮状态 (仅在不刷新的情况下)
              if (!document.getElementById('resultModal') || document.getElementById('resultModal').classList.contains('hidden') || document.getElementById('resultModalTitle').textContent.includes('失败')) {
@@ -587,84 +607,105 @@ function refreshPage(button) {
 }
 
 
-// 恢复之前的 toggleSection 函数以修复展开/收缩动画
+// 展开/收起区块内容的函数，带有平滑动画效果。
+// @param {HTMLElement} header - 被点击的区块头部元素。
+// @param {string} sectionId - (当前未使用，但可用于更精确的目标定位) 关联内容区块的ID。
 function toggleSection(header, sectionId) {
     const toggleIcon = header.querySelector('.toggle-icon');
-    // 需要找到正确的 content 元素。它不再是紧邻的兄弟元素，而是 card 内的 key-content div
+    // 内容元素是卡片内的 .key-content div
     const card = header.closest('.stats-card');
     const content = card ? card.querySelector('.key-content') : null;
-    const batchActions = card ? card.querySelector('[id$="BatchActions"]') : null; // 获取批量操作栏
-    const pagination = card ? card.querySelector('[id$="PaginationControls"]') : null; // 获取分页控件
+    
+    // 批量操作栏和分页控件也可能影响内容区域的动画高度计算
+    const batchActions = card ? card.querySelector('[id$="BatchActions"]') : null;
+    const pagination = card ? card.querySelector('[id$="PaginationControls"]') : null;
 
-    if (toggleIcon && content) {
-        const isCollapsed = content.classList.contains('collapsed');
+    if (!toggleIcon || !content) {
+        console.error("Toggle section failed: Icon or content element not found. Header:", header, "SectionId:", sectionId);
+        return;
+    }
 
-        // 切换图标状态
-        toggleIcon.classList.toggle('collapsed', !isCollapsed);
+    const isCollapsed = content.classList.contains('collapsed');
+    toggleIcon.classList.toggle('collapsed', !isCollapsed); // 更新箭头图标方向
 
-        if (isCollapsed) {
-            // 展开内容
-            content.classList.remove('collapsed');
-            // 先移除内联样式，让 CSS 控制初始状态
-            content.style.maxHeight = '';
-            content.style.opacity = '';
-            content.style.padding = '';
-            content.style.overflow = '';
-            // 使用 requestAnimationFrame 确保浏览器应用了初始状态
-            requestAnimationFrame(() => {
-                // 计算内容的实际高度
-                const scrollHeight = content.scrollHeight;
-                let totalHeight = scrollHeight;
+    if (isCollapsed) {
+        // --- 准备展开动画 ---
+        content.classList.remove('collapsed'); // 移除 collapsed 类以应用展开的样式
 
-                 // 如果批量操作栏存在且可见，也计算其高度
-                 if (batchActions && !batchActions.classList.contains('hidden')) {
-                     totalHeight += batchActions.offsetHeight;
-                 }
-                 // 如果分页控件存在且可见，也计算其高度和 margin-top
-                 if (pagination && pagination.offsetHeight > 0) {
-                     // Assuming mt-4 which is 1rem = 16px (adjust if needed)
-                     totalHeight += pagination.offsetHeight + 16;
-                 }
+        // 步骤 1: 重置内联样式，让CSS控制初始的“隐藏”状态 (通常是 maxHeight: 0, opacity: 0)。
+        //         同时，确保 overflow 在动画开始前是 hidden。
+        content.style.maxHeight = '';       // 清除可能存在的内联 maxHeight
+        content.style.opacity = '';         // 清除可能存在的内联 opacity
+        content.style.paddingTop = '';    // 清除内联 padding
+        content.style.paddingBottom = '';
+        content.style.overflow = 'hidden';  // 动画过程中隐藏溢出内容
 
-                content.style.maxHeight = totalHeight + 'px';
-                content.style.opacity = '1';
-                content.style.padding = '1rem'; // 恢复 padding
-                content.style.overflow = 'hidden'; // Keep hidden during transition
+        // 步骤 2: 使用 requestAnimationFrame (rAF) 确保浏览器在计算 scrollHeight 之前
+        //         已经应用了上一步的样式重置（特别是如果CSS中有过渡效果）。
+        requestAnimationFrame(() => {
+            // 步骤 3: 计算内容区的目标高度。
+            //         这包括内容本身的 scrollHeight，以及任何可见的批量操作栏和分页控件的高度。
+            let targetHeight = content.scrollHeight;
+            
+            if (batchActions && !batchActions.classList.contains('hidden')) {
+                targetHeight += batchActions.offsetHeight;
+            }
+            if (pagination && pagination.offsetHeight > 0) {
+                // 尝试获取分页控件的 margin-top，以获得更精确的高度
+                const paginationStyle = getComputedStyle(pagination);
+                const paginationMarginTop = parseFloat(paginationStyle.marginTop) || 0;
+                targetHeight += pagination.offsetHeight + paginationMarginTop;
+            }
 
-                // 动画结束后移除 max-height 以允许内容动态变化
-                content.addEventListener('transitionend', function handler() {
-                    content.removeEventListener('transitionend', handler);
-                    if (!content.classList.contains('collapsed')) { // 确保是在展开状态
-                       content.style.maxHeight = '';
-                       content.style.overflow = 'visible';
-                    }
-                }, { once: true });
-            });
-        } else {
-            // 收起内容
-            // 先计算当前总高度
-            let currentHeight = content.scrollHeight;
-             if (batchActions && !batchActions.classList.contains('hidden')) {
-                 currentHeight += batchActions.offsetHeight;
-             }
-             if (pagination && pagination.offsetHeight > 0) {
-                 currentHeight += pagination.offsetHeight + 16;
-             }
-            // 设置一个明确的高度，然后过渡到 0
-            content.style.maxHeight = currentHeight + 'px';
-            content.style.overflow = 'hidden'; // Ensure overflow is hidden before starting transition
-            requestAnimationFrame(() => {
-                content.style.maxHeight = '0px';
-                content.style.opacity = '0';
-                content.style.padding = '0 1rem'; // 保持左右 padding，收起上下 padding
-                content.classList.add('collapsed');
-            });
-        }
+            // 步骤 4: 设置 maxHeight 和 opacity 以触发CSS过渡到展开状态。
+            content.style.maxHeight = targetHeight + 'px';
+            content.style.opacity = '1';
+            // 假设展开后的 padding 为 1rem (p-4 in Tailwind). 根据实际情况调整。
+            content.style.paddingTop = '1rem';
+            content.style.paddingBottom = '1rem';
+
+            // 步骤 5: 监听 transitionend 事件。动画结束后，移除 maxHeight 以允许内容动态调整，
+            //         并将 overflow 设置为 visible，以防内容变化后被裁剪。
+            content.addEventListener('transitionend', function onExpansionEnd() {
+                content.removeEventListener('transitionend', onExpansionEnd); // 清理监听器
+                // 再次检查确保是在展开状态 (避免在快速连续点击时出错)
+                if (!content.classList.contains('collapsed')) {
+                    content.style.maxHeight = '';       // 允许内容自适应高度
+                    content.style.overflow = 'visible'; // 允许内容溢出（如果需要）
+                }
+            }, { once: true }); // 确保监听器只执行一次
+        });
     } else {
-        console.error("Toggle section failed: Icon or content not found.", header, sectionId);
+        // --- 准备收起动画 ---
+        // 步骤 1: 获取当前内容区的可见高度。
+        //         这对于从当前渲染高度平滑过渡到0是必要的。
+        let currentVisibleHeight = content.scrollHeight; // scrollHeight 应该已经是包括padding的内部高度
+        if (batchActions && !batchActions.classList.contains('hidden')) {
+            currentVisibleHeight += batchActions.offsetHeight;
+        }
+        if (pagination && pagination.offsetHeight > 0) {
+            const paginationStyle = getComputedStyle(pagination);
+            const paginationMarginTop = parseFloat(paginationStyle.marginTop) || 0;
+            currentVisibleHeight += pagination.offsetHeight + paginationMarginTop;
+        }
+        
+        // 步骤 2: 将 maxHeight 设置为当前计算的可见高度，以确保过渡从当前高度开始。
+        //         同时，确保 overflow 在动画开始前是 hidden。
+        content.style.maxHeight = currentVisibleHeight + 'px';
+        content.style.overflow = 'hidden';
+
+        // 步骤 3: 使用 requestAnimationFrame (rAF) 确保浏览器应用了上述 maxHeight。
+        requestAnimationFrame(() => {
+            // 步骤 4: 过渡到目标状态 (收起): maxHeight 和 padding 设为0，opacity 设为0。
+            content.style.maxHeight = '0px';
+            content.style.opacity = '0';
+            content.style.paddingTop = '0';
+            content.style.paddingBottom = '0';
+            // 在动画开始（或即将开始）后添加 collapsed 类，以便CSS可以应用最终的折叠样式。
+            content.classList.add('collapsed');
+        });
     }
 }
-
 
 // 筛选有效密钥（根据失败次数阈值）并更新批量操作状态
 function filterValidKeys() {
@@ -720,140 +761,109 @@ function filterValidKeys() {
 }
 
 
-// 初始化
-document.addEventListener('DOMContentLoaded', () => {
-    // 初始化统计区块动画
-    initStatItemAnimations();
+// --- Initialization Helper Functions ---
+function initializePageAnimationsAndEffects() {
+    initStatItemAnimations(); // Already an external function
 
-    // 添加数字滚动动画效果
     const animateCounters = () => {
         const statValues = document.querySelectorAll('.stat-value');
         statValues.forEach(valueElement => {
             const finalValue = parseInt(valueElement.textContent, 10);
             if (!isNaN(finalValue)) {
-                // 保存原始值以便稍后恢复
                 if (!valueElement.dataset.originalValue) {
                     valueElement.dataset.originalValue = valueElement.textContent;
                 }
-
-                // 数字滚动动画
                 let startValue = 0;
                 const duration = 1500;
                 const startTime = performance.now();
-
                 const updateCounter = (currentTime) => {
                     const elapsedTime = currentTime - startTime;
                     if (elapsedTime < duration) {
                         const progress = elapsedTime / duration;
-                        // 使用缓动函数使动画更自然
                         const easeOutValue = 1 - Math.pow(1 - progress, 3);
                         const currentValue = Math.floor(easeOutValue * finalValue);
                         valueElement.textContent = currentValue;
                         requestAnimationFrame(updateCounter);
                     } else {
-                        // 恢复为原始值，以确保准确性
                         valueElement.textContent = valueElement.dataset.originalValue;
                     }
-
-
                 };
                 requestAnimationFrame(updateCounter);
             }
         });
     };
-
-    // 在页面加载后启动数字动画
     setTimeout(animateCounters, 300);
 
-    // 添加卡片悬停效果
     document.querySelectorAll('.stats-card').forEach(card => {
         card.addEventListener('mouseenter', () => {
             card.classList.add('shadow-lg');
             card.style.transform = 'translateY(-2px)';
         });
-
         card.addEventListener('mouseleave', () => {
             card.classList.remove('shadow-lg');
             card.style.transform = '';
         });
     });
+}
 
-    // 监听展开/折叠事件 (确保使用正确的选择器和函数)
+function initializeSectionToggleListeners() {
     document.querySelectorAll('.stats-card-header').forEach(header => {
-         // 检查 header 是否包含 toggle-icon，避免为其他卡片（如统计卡片）添加监听器
-         if (header.querySelector('.toggle-icon')) {
-             header.addEventListener('click', (event) => {
-                 // 确保点击的不是内部交互元素（如输入框、复选框、标签、按钮、选择框）
-                 if (event.target.closest('input, label, button, select')) {
-                     return;
-                 }
-                 // 从 header 中提取 sectionId (例如从关联的 content div 的 id)
-                 const card = header.closest('.stats-card');
-                 const content = card ? card.querySelector('.key-content') : null;
-                 const sectionId = content ? content.id : null;
-                 if (sectionId) {
+        if (header.querySelector('.toggle-icon')) {
+            header.addEventListener('click', (event) => {
+                if (event.target.closest('input, label, button, select')) {
+                    return;
+                }
+                const card = header.closest('.stats-card');
+                const content = card ? card.querySelector('.key-content') : null;
+                const sectionId = content ? content.id : null;
+                if (sectionId) {
                     toggleSection(header, sectionId);
-                 } else {
-                     console.warn("Could not determine sectionId for toggle.");
-                 }
-             });
-         }
+                } else {
+                    console.warn("Could not determine sectionId for toggle.");
+                }
+            });
+        }
     });
+}
 
-    // 添加筛选输入框事件监听
+function initializeKeyFilterControls() {
     const thresholdInput = document.getElementById('failCountThreshold');
     if (thresholdInput) {
-        // 使用 'input' 事件实时响应输入变化
         thresholdInput.addEventListener('input', filterValidKeys);
-        // 初始加载时应用一次筛选 (现在由 pagination/search 初始化处理)
-        // filterValidKeys();
     }
+}
 
-    // --- 批量验证相关函数 (明确挂载到 window) ---
-
-    // 显示验证确认模态框 (基于选中的密钥)
+function initializeGlobalBatchVerificationHandlers() {
     window.showVerifyModal = function(type, event) {
-        // 阻止事件冒泡（如果从按钮点击触发）
         if (event) {
             event.stopPropagation();
         }
-
         const modalElement = document.getElementById('verifyModal');
         const titleElement = document.getElementById('verifyModalTitle');
         const messageElement = document.getElementById('verifyModalMessage');
         const confirmButton = document.getElementById('confirmVerifyBtn');
-
         const selectedKeys = getSelectedKeys(type);
         const count = selectedKeys.length;
-
-        // 设置标题和消息
         titleElement.textContent = '批量验证密钥';
         if (count > 0) {
             messageElement.textContent = `确定要批量验证选中的 ${count} 个${type === 'valid' ? '有效' : '无效'}密钥吗？此操作可能需要一些时间。`;
-            confirmButton.disabled = false; // 确保按钮可用
+            confirmButton.disabled = false;
         } else {
-            // 这个情况理论上不会发生，因为按钮在未选中时是禁用的
             messageElement.textContent = `请先选择要验证的${type === 'valid' ? '有效' : '无效'}密钥。`;
             confirmButton.disabled = true;
         }
-
-        // 设置确认按钮事件
         confirmButton.onclick = () => executeVerifyAll(type);
-
-        // 显示模态框
         modalElement.classList.remove('hidden');
-    }
+    };
 
     window.closeVerifyModal = function() {
         document.getElementById('verifyModal').classList.add('hidden');
-    }
+    };
 
-    window.executeVerifyAll = async function(type) {
+    // executeVerifyAll 变为 initializeGlobalBatchVerificationHandlers 的局部函数
+    async function executeVerifyAll(type) { // Removed window.
         try {
-            // 关闭确认模态框
-            closeVerifyModal();
-
-            // 找到对应的验证按钮以显示加载状态
+            window.closeVerifyModal(); // Calls the global close function, which is fine.
             const verifyButton = document.querySelector(`#${type}BatchActions button:nth-child(1)`); // Assuming verify is the first button
             let originalVerifyHtml = '';
             if (verifyButton) {
@@ -861,85 +871,64 @@ document.addEventListener('DOMContentLoaded', () => {
                 verifyButton.disabled = true;
                 verifyButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 验证中';
             }
-
-
-            // 获取选中的密钥
             const keysToVerify = getSelectedKeys(type);
-
             if (keysToVerify.length === 0) {
                 showNotification(`没有选中的${type === 'valid' ? '有效' : '无效'}密钥可验证`, 'warning');
-                 if (verifyButton) { // Restore button if no keys selected
-                     verifyButton.innerHTML = originalVerifyHtml;
-                     // Button disable state will be handled by updateBatchActions after reload or modal close
-                 }
+                if (verifyButton) { // Restore button if no keys selected
+                    verifyButton.innerHTML = originalVerifyHtml;
+                }
                 return;
             }
-
-            // 显示一个通用的加载提示
             showNotification('开始批量验证，请稍候...', 'info');
-
-            // 调用新的后端 API 来验证选定的密钥
-            const response = await fetch(`/gemini/v1beta/verify-selected-keys`, { // 假设的新 API 端点
+            const options = {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ keys: keysToVerify }) // 只发送密钥列表
-            });
-
-            if (!response.ok) {
-                 let errorMsg = `服务器返回错误: ${response.status}`;
-                 try {
-                     const errorData = await response.json();
-                     errorMsg = errorData.message || errorMsg;
-                 } catch (e) { /*忽略解析错误*/ }
-                 throw new Error(errorMsg);
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ keys: keysToVerify })
+            };
+            const data = await fetchAPI(`/gemini/v1beta/verify-selected-keys`, options);
+            if(data) {
+                showVerificationResultModal(data);
+            } else {
+                 throw new Error("API did not return verification data.");
             }
-
-            const data = await response.json();
-
-            // 使用新的专用模态框显示结果
-            showVerificationResultModal(data);
-            // 注意：autoReload 逻辑已移至 showVerificationResultModal 内部 (现在总是刷新)
-
-        } catch (error) {
-            console.error('批量验证处理失败:', error);
-            // 失败后也刷新页面，让用户看到可能更新的状态
-            showResultModal(false, '批量验证处理失败: ' + error.message, true);
+        } catch (apiError) {
+            console.error('批量验证处理失败:', apiError);
+            showResultModal(false, `批量验证处理失败: ${apiError.message}`, true);
         } finally {
-             // 可以在这里移除加载指示器
-             console.log("Bulk verification process finished.");
-             // Button state will be reset on page reload
+            console.log("Bulk verification process finished.");
+            // Button state will be reset on page reload or by updateBatchActions
         }
     }
+    // The confirmButton.onclick in showVerifyModal (defined earlier in initializeGlobalBatchVerificationHandlers)
+    // will correctly reference this local executeVerifyAll due to closure.
+}
 
-    // --- 复选框事件监听 ---
-    // Attach listeners dynamically after pagination renders content, or use event delegation
-    document.getElementById('validKeys').addEventListener('change', (event) => {
-        if (event.target.classList.contains('key-checkbox')) {
-            updateBatchActions('valid');
-        }
-    });
-    document.getElementById('invalidKeys').addEventListener('change', (event) => {
-        if (event.target.classList.contains('key-checkbox')) {
-            updateBatchActions('invalid');
-        }
-    });
+function initializeKeySelectionListeners() {
+    const validKeysList = document.getElementById('validKeys');
+    if (validKeysList) {
+        validKeysList.addEventListener('change', (event) => {
+            if (event.target.classList.contains('key-checkbox')) {
+                updateBatchActions('valid');
+            }
+        });
+    }
+    const invalidKeysList = document.getElementById('invalidKeys');
+    if (invalidKeysList) {
+        invalidKeysList.addEventListener('change', (event) => {
+            if (event.target.classList.contains('key-checkbox')) {
+                updateBatchActions('invalid');
+            }
+        });
+    }
+}
 
-
-    // 初始化批量操作区域状态 (在 pagination 初始化后进行)
-    // updateBatchActions('valid'); // Called by displayPage
-    // updateBatchActions('invalid'); // Called by displayPage
-
-
-    // --- 滚动和页面控制 --- (Scroll buttons handled by base.html)
-    // --- 自动刷新控制 ---
+function initializeAutoRefreshControls() {
     const autoRefreshToggle = document.getElementById('autoRefreshToggle');
     const autoRefreshIntervalTime = 60000; // 60秒
     let autoRefreshTimer = null;
 
     function startAutoRefresh() {
-        if (autoRefreshTimer) return; // 防止重复启动
+        if (autoRefreshTimer) return;
         console.log('启动自动刷新...');
         showNotification('自动刷新已启动', 'info', 2000);
         autoRefreshTimer = setInterval(() => {
@@ -958,14 +947,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (autoRefreshToggle) {
-        // 从 localStorage 读取状态并初始化
         const isAutoRefreshEnabled = localStorage.getItem('autoRefreshEnabled') === 'true';
         autoRefreshToggle.checked = isAutoRefreshEnabled;
         if (isAutoRefreshEnabled) {
             startAutoRefresh();
         }
-
-        // 添加事件监听器
         autoRefreshToggle.addEventListener('change', () => {
             if (autoRefreshToggle.checked) {
                 localStorage.setItem('autoRefreshEnabled', 'true');
@@ -976,32 +962,37 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+}
 
-    // --- Pagination and Search Initialization ---
-    // This part needs to be integrated with the pagination logic from the provided file content
-    // Assuming the pagination/search related code from the file_content is now part of this script
+// These variables are used by pagination and search, define them in a scope accessible by initializeKeyPaginationAndSearch
+let allValidKeys = [];
+let allInvalidKeys = [];
+let filteredValidKeys = [];
+let itemsPerPage = 10; // Default
+let validCurrentPage = 1; // Also used by displayPage
+let invalidCurrentPage = 1; // Also used by displayPage
 
-    // --- Get DOM Elements for Pagination/Search ---
+
+function initializeKeyPaginationAndSearch() {
     const validKeysListElement = document.getElementById('validKeys');
     const invalidKeysListElement = document.getElementById('invalidKeys');
-    // const thresholdInput = document.getElementById('failCountThreshold'); // Already defined
     const searchInput = document.getElementById('keySearchInput');
     const itemsPerPageSelect = document.getElementById('itemsPerPageSelect');
+    const thresholdInput = document.getElementById('failCountThreshold'); // Already used by initializeKeyFilterControls
 
-    // --- Store Initial Key Data ---
     if (validKeysListElement) {
         allValidKeys = Array.from(validKeysListElement.querySelectorAll('li[data-key]'));
         allValidKeys.forEach(li => {
             const keyTextSpan = li.querySelector('.key-text');
             if (keyTextSpan && keyTextSpan.dataset.fullKey) {
-                li.dataset.key = keyTextSpan.dataset.fullKey; // Ensure li has full key for search
+                li.dataset.key = keyTextSpan.dataset.fullKey;
             }
         });
-        filteredValidKeys = [...allValidKeys]; // Start with all keys
+        filteredValidKeys = [...allValidKeys];
     }
     if (invalidKeysListElement) {
         allInvalidKeys = Array.from(invalidKeysListElement.querySelectorAll('li[data-key]'));
-         allInvalidKeys.forEach(li => {
+        allInvalidKeys.forEach(li => {
             const keyTextSpan = li.querySelector('.key-text');
             if (keyTextSpan && keyTextSpan.dataset.fullKey) {
                 li.dataset.key = keyTextSpan.dataset.fullKey;
@@ -1009,41 +1000,54 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Initial Display ---
     if (itemsPerPageSelect) {
-        itemsPerPage = parseInt(itemsPerPageSelect.value, 10);
+        itemsPerPage = parseInt(itemsPerPageSelect.value, 10); // Initialize itemsPerPage
+        itemsPerPageSelect.addEventListener('change', () => {
+            itemsPerPage = parseInt(itemsPerPageSelect.value, 10);
+            filterAndSearchValidKeys(); // Re-filter and display page 1 for valid keys
+            displayPage('invalid', 1, allInvalidKeys); // Reset invalid keys to page 1
+        });
     }
-    filterAndSearchValidKeys(); // This applies initial filter/search and calls displayPage('valid', 1, ...)
-    displayPage('invalid', 1, allInvalidKeys); // Display first page of invalid keys
+    
+    // Initial display calls
+    filterAndSearchValidKeys();
+    displayPage('invalid', 1, allInvalidKeys);
 
-    // --- Event Listeners for Pagination/Search ---
-    if (thresholdInput) {
-        thresholdInput.addEventListener('input', filterAndSearchValidKeys);
-    }
+    // Event listeners for search and filter (thresholdInput listener is in initializeKeyFilterControls)
     if (searchInput) {
         searchInput.addEventListener('input', filterAndSearchValidKeys);
     }
-    if (itemsPerPageSelect) {
-        itemsPerPageSelect.addEventListener('change', () => {
-            itemsPerPage = parseInt(itemsPerPageSelect.value, 10);
-            filterAndSearchValidKeys(); // Re-filter and display page 1
+}
+
+function registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/static/service-worker.js')
+                .then(registration => {
+                    console.log('ServiceWorker注册成功:', registration.scope);
+                })
+                .catch(error => {
+                    console.log('ServiceWorker注册失败:', error);
+                });
         });
     }
-
-});
-
-// Service Worker registration
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/service-worker.js')
-            .then(registration => {
-                console.log('ServiceWorker注册成功:', registration.scope);
-            })
-            .catch(error => {
-                console.log('ServiceWorker注册失败:', error);
-            });
-    });
 }
+
+// 初始化
+document.addEventListener('DOMContentLoaded', () => {
+    initializePageAnimationsAndEffects();
+    initializeSectionToggleListeners();
+    initializeKeyFilterControls();
+    initializeGlobalBatchVerificationHandlers();
+    initializeKeySelectionListeners();
+    initializeAutoRefreshControls();
+    initializeKeyPaginationAndSearch(); // This will also handle initial display
+    registerServiceWorker();
+
+    // Initial batch actions update might be needed if not covered by displayPage
+    // updateBatchActions('valid');
+    // updateBatchActions('invalid');
+});
 function toggleKeyVisibility(button) {
     const keyContainer = button.closest('.flex.items-center.gap-1');
     const keyTextSpan = keyContainer.querySelector('.key-text');
@@ -1097,27 +1101,18 @@ async function showApiCallDetails(period) {
         </div>`;
 
     try {
-        // 调用后端 API 获取数据
-        const response = await fetch(`/api/stats/details?period=${period}`);
-        if (!response.ok) {
-            let errorMsg = `服务器错误: ${response.status}`;
-             try {
-                 const errorData = await response.json();
-                 errorMsg = errorData.detail || errorMsg;
-             } catch (e) { /* 忽略解析错误 */ }
-            throw new Error(errorMsg);
+        const data = await fetchAPI(`/api/stats/details?period=${period}`);
+        if (data) {
+             renderApiCallDetails(data, contentArea);
+        } else {
+             renderApiCallDetails([], contentArea); // Show empty state if no data
         }
-        const data = await response.json();
-
-        // 渲染数据
-        renderApiCallDetails(data, contentArea);
-
-    } catch (error) {
-        console.error('获取 API 调用详情失败:', error);
+    } catch (apiError) {
+        console.error('获取 API 调用详情失败:', apiError);
         contentArea.innerHTML = `
             <div class="text-center py-10 text-danger-500">
                 <i class="fas fa-exclamation-triangle text-3xl"></i>
-                <p class="mt-2">加载失败: ${error.message}</p>
+                <p class="mt-2">加载失败: ${apiError.message}</p>
             </div>`;
     }
 }
@@ -1198,6 +1193,39 @@ window.showKeyUsageDetails = async function(key) {
         return;
     }
 
+    // renderKeyUsageDetails 变为 showKeyUsageDetails 的局部函数
+    function renderKeyUsageDetails(data, container) {
+        if (!data || Object.keys(data).length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-10 text-gray-500">
+                    <i class="fas fa-info-circle text-3xl"></i>
+                    <p class="mt-2">该密钥在最近24小时内没有调用记录。</p>
+                </div>`;
+            return;
+        }
+        let tableHtml = `
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">模型名称</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">调用次数 (24h)</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">`;
+        const sortedModels = Object.entries(data).sort(([, countA], [, countB]) => countB - countA);
+        sortedModels.forEach(([model, count]) => {
+            tableHtml += `
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${model}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${count}</td>
+                </tr>`;
+        });
+        tableHtml += `
+                </tbody>
+            </table>`;
+        container.innerHTML = tableHtml;
+    }
+
     // 设置标题
     titleElement.textContent = `密钥 ${keyDisplay} - 最近24小时请求详情`;
 
@@ -1210,28 +1238,18 @@ window.showKeyUsageDetails = async function(key) {
         </div>`;
 
     try {
-        // 调用新的后端 API 获取数据
-        // 注意：后端需要实现 /api/key-usage-details/{key} 端点
-        const response = await fetch(`/api/key-usage-details/${key}`);
-        if (!response.ok) {
-            let errorMsg = `服务器错误: ${response.status}`;
-            try {
-                const errorData = await response.json();
-                errorMsg = errorData.detail || errorMsg; // 假设后端错误信息在 detail 字段
-            } catch (e) { /* 忽略解析错误 */ }
-            throw new Error(errorMsg);
+        const data = await fetchAPI(`/api/key-usage-details/${key}`);
+        if (data) {
+            renderKeyUsageDetails(data, contentArea);
+        } else {
+             renderKeyUsageDetails({}, contentArea); // Show empty state if no data
         }
-        const data = await response.json();
-
-        // 渲染数据
-        renderKeyUsageDetails(data, contentArea);
-
-    } catch (error) {
-        console.error('获取密钥使用详情失败:', error);
+    } catch (apiError) {
+        console.error('获取密钥使用详情失败:', apiError);
         contentArea.innerHTML = `
             <div class="text-center py-10 text-danger-500">
                 <i class="fas fa-exclamation-triangle text-3xl"></i>
-                <p class="mt-2">加载失败: ${error.message}</p>
+                <p class="mt-2">加载失败: ${apiError.message}</p>
             </div>`;
     }
 }
@@ -1244,58 +1262,7 @@ window.closeKeyUsageDetailsModal = function() {
     }
 }
 
-// 渲染密钥使用详情到模态框 (这个函数主要由 showKeyUsageDetails 调用，不一定需要全局，但保持一致性)
-window.renderKeyUsageDetails = function(data, container) {
-    // data 预期格式: { "model_name1": count1, "model_name2": count2, ... }
-    if (!data || Object.keys(data).length === 0) {
-        container.innerHTML = `
-            <div class="text-center py-10 text-gray-500">
-                <i class="fas fa-info-circle text-3xl"></i>
-                <p class="mt-2">该密钥在最近24小时内没有调用记录。</p>
-            </div>`;
-        return;
-    }
-
-    // 创建表格
-    let tableHtml = `
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">模型名称</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">调用次数 (24h)</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-    `;
-
-    // 排序模型（可选，按调用次数降序）
-    const sortedModels = Object.entries(data).sort(([, countA], [, countB]) => countB - countA);
-
-    // 填充表格行
-    sortedModels.forEach(([model, count]) => {
-        tableHtml += `
-            <tr>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${model}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${count}</td>
-            </tr>
-        `;
-    });
-
-    tableHtml += `
-            </tbody>
-        </table>
-    `;
-
-    container.innerHTML = tableHtml;
-}
-
-// --- Global Variables for Pagination ---
-let itemsPerPage = 10; // Default, will be updated from select
-let validCurrentPage = 1;
-let invalidCurrentPage = 1;
-let allValidKeys = []; // Stores all original valid key li elements
-let allInvalidKeys = []; // Stores all original invalid key li elements
-let filteredValidKeys = []; // Stores filtered and searched valid key li elements
+// window.renderKeyUsageDetails 函数已被移入 showKeyUsageDetails 内部, 此处残留代码已删除。
 
 // --- Key List Display & Pagination ---
 

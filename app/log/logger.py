@@ -218,3 +218,8 @@ def get_api_client_logger():
 
 def get_openai_compatible_logger():
     return Logger.setup_logger("openai_compatible")
+
+
+def get_error_log_logger():
+    return Logger.setup_logger("error_log")
+

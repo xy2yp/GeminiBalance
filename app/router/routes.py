@@ -14,7 +14,6 @@ from app.service.stats.stats_service import StatsService
 
 logger = get_routes_logger()
 
-# 配置Jinja2模板
 templates = Jinja2Templates(directory="app/templates")
 
 
@@ -25,7 +24,6 @@ def setup_routers(app: FastAPI) -> None:
     Args:
         app: FastAPI应用程序实例
     """
-    # 包含API路由
     app.include_router(openai_routes.router)
     app.include_router(gemini_routes.router)
     app.include_router(gemini_routes.router_v1beta)
@@ -36,12 +34,10 @@ def setup_routers(app: FastAPI) -> None:
     app.include_router(version_routes.router)
     app.include_router(openai_compatiable_routes.router)
 
-    # 添加页面路由
     setup_page_routes(app)
 
-    # 添加健康检查路由
     setup_health_routes(app)
-    setup_api_stats_routes(app) # Add API stats routes
+    setup_api_stats_routes(app)
 
 
 def setup_page_routes(app: FastAPI) -> None:
@@ -106,16 +102,14 @@ def setup_page_routes(app: FastAPI) -> None:
                     "request": request,
                     "valid_keys": keys_status["valid_keys"],
                     "invalid_keys": keys_status["invalid_keys"],
-                    "total_keys": total_keys, # Renamed for clarity
-                    "valid_key_count": valid_key_count, # Added count
-                    "invalid_key_count": invalid_key_count, # Added count
-                    "api_stats": api_stats, # <-- Pass stats to template
+                    "total_keys": total_keys,
+                    "valid_key_count": valid_key_count,
+                    "invalid_key_count": invalid_key_count,
+                    "api_stats": api_stats,
                 },
             )
         except Exception as e:
             logger.error(f"Error retrieving keys status or API stats: {str(e)}")
-            # Optionally, render template with error or default stats
-            # For now, re-raise to show error page
             raise
             
     @app.get("/config", response_class=HTMLResponse)
@@ -175,16 +169,13 @@ def setup_api_stats_routes(app: FastAPI) -> None:
     async def api_stats_details(request: Request, period: str):
         """获取指定时间段内的 API 调用详情"""
         try:
-            # 验证认证
             auth_token = request.cookies.get("auth_token")
             if not auth_token or not verify_auth_token(auth_token):
                 logger.warning("Unauthorized access attempt to API stats details")
-                # Returning JSON error instead of redirect for API endpoint
                 return {"error": "Unauthorized"}, 401
 
             logger.info(f"Fetching API call details for period: {period}")
-            # Use the service instance here as well
-            stats_service = StatsService() # Create an instance
+            stats_service = StatsService()
             details = await stats_service.get_api_call_details(period)
             return details
         except ValueError as e:
