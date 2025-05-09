@@ -31,6 +31,23 @@ const bulkDeleteProxyInput = document.getElementById("bulkDeleteProxyInput");
 const resetConfirmModal = document.getElementById("resetConfirmModal");
 const configForm = document.getElementById("configForm"); // Added for frequent use
 
+// Model Helper Modal Elements
+const modelHelperModal = document.getElementById("modelHelperModal");
+const modelHelperTitleElement = document.getElementById("modelHelperTitle");
+const modelHelperSearchInput = document.getElementById(
+  "modelHelperSearchInput"
+);
+const modelHelperListContainer = document.getElementById(
+  "modelHelperListContainer"
+);
+const closeModelHelperModalBtn = document.getElementById(
+  "closeModelHelperModalBtn"
+);
+const cancelModelHelperBtn = document.getElementById("cancelModelHelperBtn");
+
+let cachedModelsList = null;
+let currentModelHelperTarget = null; // { type: 'input'/'array', target: elementOrIdOrKey }
+
 // Modal Control Functions
 function openModal(modalElement) {
   if (modalElement) {
@@ -227,6 +244,7 @@ document.addEventListener("DOMContentLoaded", function () {
       bulkDeleteApiKeyModal,
       proxyModal,
       bulkDeleteProxyModal,
+      modelHelperModal,
     ];
     modals.forEach((modal) => {
       if (event.target === modal) {
@@ -353,6 +371,44 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   initializeSensitiveFields(); // Initialize sensitive field handling
+
+  // Model Helper Modal Event Listeners
+  if (closeModelHelperModalBtn) {
+    closeModelHelperModalBtn.addEventListener("click", () =>
+      closeModal(modelHelperModal)
+    );
+  }
+  if (cancelModelHelperBtn) {
+    cancelModelHelperBtn.addEventListener("click", () =>
+      closeModal(modelHelperModal)
+    );
+  }
+  if (modelHelperSearchInput) {
+    modelHelperSearchInput.addEventListener("input", () =>
+      renderModelsInModal()
+    );
+  }
+
+  // Add event listeners to all model helper trigger buttons
+  const modelHelperTriggerBtns = document.querySelectorAll(
+    ".model-helper-trigger-btn"
+  );
+  modelHelperTriggerBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const targetInputId = btn.dataset.targetInputId;
+      const targetArrayKey = btn.dataset.targetArrayKey;
+
+      if (targetInputId) {
+        currentModelHelperTarget = {
+          type: "input",
+          target: document.getElementById(targetInputId),
+        };
+      } else if (targetArrayKey) {
+        currentModelHelperTarget = { type: "array", targetKey: targetArrayKey };
+      }
+      openModelHelperModal();
+    });
+  });
 }); // <-- DOMContentLoaded end
 
 /**
@@ -574,6 +630,15 @@ async function initConfig() {
     }
     // --- 结束：处理自动删除请求日志配置的默认值 ---
 
+    // --- 新增：处理假流式配置的默认值 ---
+    if (typeof config.FAKE_STREAM_ENABLED === "undefined") {
+      config.FAKE_STREAM_ENABLED = false;
+    }
+    if (typeof config.FAKE_STREAM_EMPTY_DATA_INTERVAL_SECONDS === "undefined") {
+      config.FAKE_STREAM_EMPTY_DATA_INTERVAL_SECONDS = 5;
+    }
+    // --- 结束：处理假流式配置的默认值 ---
+
     populateForm(config);
     // After populateForm, initialize masking for all populated sensitive fields
     if (configForm) {
@@ -608,6 +673,10 @@ async function initConfig() {
       AUTO_DELETE_ERROR_LOGS_DAYS: 7, // 新增默认值
       AUTO_DELETE_REQUEST_LOGS_ENABLED: false, // 新增默认值
       AUTO_DELETE_REQUEST_LOGS_DAYS: 30, // 新增默认值
+      // --- 新增：处理假流式配置的默认值 ---
+      FAKE_STREAM_ENABLED: false,
+      FAKE_STREAM_EMPTY_DATA_INTERVAL_SECONDS: 5,
+      // --- 结束：处理假流式配置的默认值 ---
     };
 
     populateForm(defaultConfig);
@@ -810,6 +879,26 @@ function populateForm(config) {
     });
   }
   // --- 结束：处理自动删除请求日志的字段 ---
+
+  // --- 新增：处理假流式配置的字段 ---
+  const fakeStreamEnabledCheckbox = document.getElementById(
+    "FAKE_STREAM_ENABLED"
+  );
+  const fakeStreamIntervalInput = document.getElementById(
+    "FAKE_STREAM_EMPTY_DATA_INTERVAL_SECONDS"
+  );
+
+  if (fakeStreamEnabledCheckbox && fakeStreamIntervalInput) {
+    fakeStreamEnabledCheckbox.checked = !!config.FAKE_STREAM_ENABLED;
+    fakeStreamIntervalInput.value =
+      config.FAKE_STREAM_EMPTY_DATA_INTERVAL_SECONDS || 5;
+    // 根据复选框状态设置输入框的禁用状态 (如果需要)
+    // fakeStreamIntervalInput.disabled = !fakeStreamEnabledCheckbox.checked;
+    // fakeStreamEnabledCheckbox.addEventListener("change", function () {
+    //   fakeStreamIntervalInput.disabled = !this.checked;
+    // });
+  }
+  // --- 结束：处理假流式配置的字段 ---
 }
 
 /**
@@ -1070,7 +1159,7 @@ function createArrayInput(key, value, isSensitive, modelId = null) {
   input.type = "text";
   input.name = `${key}[]`; // Used for form submission if not handled by JS
   input.value = value;
-  let inputClasses = `${ARRAY_INPUT_CLASS} flex-grow px-3 py-2 border-none rounded-l-md focus:outline-none`;
+  let inputClasses = `${ARRAY_INPUT_CLASS} flex-grow px-3 py-2 border-none rounded-l-md focus:outline-none form-input-themed`;
   if (isSensitive) {
     inputClasses += ` ${SENSITIVE_INPUT_CLASS}`;
   }
@@ -1153,7 +1242,10 @@ function addArrayItemWithValue(key, value) {
 
   const inputWrapper = document.createElement("div");
   inputWrapper.className =
-    "flex items-center flex-grow border border-gray-300 rounded-md focus-within:border-primary-500 focus-within:ring focus-within:ring-primary-200 focus-within:ring-opacity-50";
+    "flex items-center flex-grow rounded-md focus-within:border-violet-400 focus-within:ring focus-within:ring-violet-400 focus-within:ring-opacity-50";
+  // Apply themed border directly via style, and ensure it has a border
+  inputWrapper.style.border = "1px solid rgba(120, 100, 200, 0.5)";
+  inputWrapper.style.backgroundColor = "transparent"; // Ensure wrapper is transparent
 
   const input = createArrayInput(
     key,
@@ -1401,6 +1493,24 @@ function collectFormData() {
     );
   }
   // --- 结束：收集自动删除请求日志的配置 ---
+
+  // --- 新增：收集假流式配置 ---
+  const fakeStreamEnabledCheckbox = document.getElementById(
+    "FAKE_STREAM_ENABLED"
+  );
+  if (fakeStreamEnabledCheckbox) {
+    formData["FAKE_STREAM_ENABLED"] = fakeStreamEnabledCheckbox.checked;
+  }
+  const fakeStreamIntervalInput = document.getElementById(
+    "FAKE_STREAM_EMPTY_DATA_INTERVAL_SECONDS"
+  );
+  if (fakeStreamIntervalInput) {
+    formData["FAKE_STREAM_EMPTY_DATA_INTERVAL_SECONDS"] = parseInt(
+      fakeStreamIntervalInput.value,
+      10
+    );
+  }
+  // --- 结束：收集假流式配置 ---
 
   return formData;
 }
@@ -1682,7 +1792,7 @@ function addSafetySettingItem(category = "", threshold = "") {
 
   const categorySelect = document.createElement("select");
   categorySelect.className =
-    "safety-category-select flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50 bg-white";
+    "safety-category-select flex-grow px-3 py-2 rounded-md focus:outline-none focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50 form-select-themed";
   harmCategories.forEach((cat) => {
     const option = document.createElement("option");
     option.value = cat;
@@ -1693,7 +1803,7 @@ function addSafetySettingItem(category = "", threshold = "") {
 
   const thresholdSelect = document.createElement("select");
   thresholdSelect.className =
-    "safety-threshold-select w-48 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50 bg-white";
+    "safety-threshold-select w-48 px-3 py-2 rounded-md focus:outline-none focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50 form-select-themed";
   harmThresholds.forEach((thr) => {
     const option = document.createElement("option");
     option.value = thr;
@@ -1716,3 +1826,140 @@ function addSafetySettingItem(category = "", threshold = "") {
 
   container.appendChild(settingItem);
 }
+
+// --- Model Helper Functions ---
+async function fetchModels() {
+  if (cachedModelsList) {
+    return cachedModelsList;
+  }
+  try {
+    showNotification("正在从 /api/config/ui/models 加载模型列表...", "info");
+    const response = await fetch("/api/config/ui/models");
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`HTTP error ${response.status}: ${errorData}`);
+    }
+    const responseData = await response.json(); // Changed variable name to responseData
+    // The backend returns an object like: { object: "list", data: [{id: "m1"}, {id: "m2"}], success: true }
+    if (
+      responseData &&
+      responseData.success &&
+      Array.isArray(responseData.data)
+    ) {
+      cachedModelsList = responseData.data; // Use responseData.data
+      showNotification("模型列表加载成功", "success");
+      return cachedModelsList;
+    } else {
+      console.error("Invalid model list format received:", responseData);
+      throw new Error("模型列表格式无效或请求未成功");
+    }
+  } catch (error) {
+    console.error("加载模型列表失败:", error);
+    showNotification(`加载模型列表失败: ${error.message}`, "error");
+    cachedModelsList = []; // Avoid repeated fetches on error for this session, or set to null to retry
+    return [];
+  }
+}
+
+function renderModelsInModal() {
+  if (!modelHelperListContainer) return;
+  if (!cachedModelsList) {
+    modelHelperListContainer.innerHTML =
+      '<p class="text-gray-400 text-sm italic">模型列表尚未加载。</p>';
+    return;
+  }
+
+  const searchTerm = modelHelperSearchInput.value.toLowerCase();
+  const filteredModels = cachedModelsList.filter((model) =>
+    model.id.toLowerCase().includes(searchTerm)
+  );
+
+  modelHelperListContainer.innerHTML = ""; // Clear previous items
+
+  if (filteredModels.length === 0) {
+    modelHelperListContainer.innerHTML =
+      '<p class="text-gray-400 text-sm italic">未找到匹配的模型。</p>';
+    return;
+  }
+
+  filteredModels.forEach((model) => {
+    const modelItemElement = document.createElement("button");
+    modelItemElement.type = "button";
+    modelItemElement.textContent = model.id;
+    modelItemElement.className =
+      "block w-full text-left px-4 py-2 rounded-md hover:bg-violet-700 focus:bg-violet-700 focus:outline-none transition-colors text-gray-200";
+    // Add any other classes for styling, e.g., from existing modals or array items
+
+    modelItemElement.addEventListener("click", () =>
+      handleModelSelection(model.id)
+    );
+    modelHelperListContainer.appendChild(modelItemElement);
+  });
+}
+
+async function openModelHelperModal() {
+  if (!currentModelHelperTarget) {
+    console.error("Model helper target not set.");
+    showNotification("无法打开模型助手：目标未设置", "error");
+    return;
+  }
+
+  await fetchModels(); // Ensure models are loaded
+  renderModelsInModal(); // Render them (handles empty/error cases internally)
+
+  if (modelHelperTitleElement) {
+    if (
+      currentModelHelperTarget.type === "input" &&
+      currentModelHelperTarget.target
+    ) {
+      const label = document.querySelector(
+        `label[for="${currentModelHelperTarget.target.id}"]`
+      );
+      modelHelperTitleElement.textContent = label
+        ? `为 "${label.textContent.trim()}" 选择模型`
+        : "选择模型";
+    } else if (currentModelHelperTarget.type === "array") {
+      modelHelperTitleElement.textContent = `为 ${currentModelHelperTarget.targetKey} 添加模型`;
+    } else {
+      modelHelperTitleElement.textContent = "选择模型";
+    }
+  }
+  if (modelHelperSearchInput) modelHelperSearchInput.value = ""; // Clear search on open
+  if (modelHelperModal) openModal(modelHelperModal);
+}
+
+function handleModelSelection(selectedModelId) {
+  if (!currentModelHelperTarget) return;
+
+  if (
+    currentModelHelperTarget.type === "input" &&
+    currentModelHelperTarget.target
+  ) {
+    const inputElement = currentModelHelperTarget.target;
+    inputElement.value = selectedModelId;
+    // If the input is a sensitive field, dispatch focusout to trigger masking behavior if needed
+    if (inputElement.classList.contains(SENSITIVE_INPUT_CLASS)) {
+      const event = new Event("focusout", { bubbles: true, cancelable: true });
+      inputElement.dispatchEvent(event);
+    }
+    // Dispatch input event for any other listeners
+    inputElement.dispatchEvent(new Event("input", { bubbles: true }));
+  } else if (
+    currentModelHelperTarget.type === "array" &&
+    currentModelHelperTarget.targetKey
+  ) {
+    const modelId = addArrayItemWithValue(
+      currentModelHelperTarget.targetKey,
+      selectedModelId
+    );
+    if (currentModelHelperTarget.targetKey === "THINKING_MODELS" && modelId) {
+      // Automatically add corresponding budget map item with default budget 0
+      createAndAppendBudgetMapItem(selectedModelId, 0, modelId);
+    }
+  }
+
+  if (modelHelperModal) closeModal(modelHelperModal);
+  currentModelHelperTarget = null; // Reset target
+}
+
+// -- End Model Helper Functions --

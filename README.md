@@ -91,6 +91,12 @@ app/
     * `-p 8000:8000`: 将容器的 8000 端口映射到主机的 8000 端口。
     * `--env-file .env`: 使用 `.env` 文件设置环境变量。
 
+    > 注意：如果使用 SQLite 数据库，需要挂载数据卷以持久化数据：
+    > ```bash
+    > docker run -d -p 8000:8000 --env-file .env -v /path/to/data:/app/data gemini-balance
+    > ```
+    > 其中 `/path/to/data` 是主机上的数据存储路径，`/app/data` 是容器内的数据目录。
+
 #### b) 用现有的docker镜像部署
 
 1. **拉取镜像**:
@@ -109,6 +115,12 @@ app/
    * `-p 8000:8000`: 将容器的 8000 端口映射到主机的 8000 端口 (根据需要调整)。
    * `--env-file .env`: 使用 `.env` 文件设置环境变量 (确保 `.env` 文件存在于执行命令的目录)。
 
+    > 注意：如果使用 SQLite 数据库，需要挂载数据卷以持久化数据：
+    > ```bash
+    > docker run -d -p 8000:8000 --env-file .env -v /path/to/data:/app/data ghcr.io/snailyp/gemini-balance:latest
+    > ```
+    > 其中 `/path/to/data` 是主机上的数据存储路径，`/app/data` 是容器内的数据目录。
+
 ### 本地运行 (适用于开发和测试)
 
 如果您想在本地直接运行源代码进行开发或测试，请按照以下步骤操作：
@@ -116,7 +128,7 @@ app/
 1. **确保已完成准备工作**:
     * 克隆仓库到本地。
     * 安装 Python 3.9 或更高版本。
-    * 在项目根目录下创建并配置好 `.env` 文件 (参考前面的“配置环境变量”部分)。
+    * 在项目根目录下创建并配置好 `.env` 文件 (参考前面的"配置环境变量"部分)。
     * 安装项目依赖：
 
         ```bash
@@ -172,6 +184,10 @@ app/
 | `TIME_OUT`                   | 可选，请求超时时间 (秒)                                        | `300`                                                 |
 | `PROXIES`                    | 可选，代理服务器列表 (例如 `http://user:pass@host:port`, `socks5://host:port`) | `[]`                                                  |
 | `LOG_LEVEL`                  | 可选，日志级别，例如 DEBUG, INFO, WARNING, ERROR, CRITICAL     | `INFO`                                                |
+| `AUTO_DELETE_ERROR_LOGS_ENABLED` | 可选，是否开启自动删除错误日志                                 | `true`                                                |
+| `AUTO_DELETE_ERROR_LOGS_DAYS`  | 可选，自动删除多少天前的错误日志 (例如 1, 7, 30)             | `7`                                                   |
+| `AUTO_DELETE_REQUEST_LOGS_ENABLED`| 可选，是否开启自动删除请求日志                               | `false`                                               |
+| `AUTO_DELETE_REQUEST_LOGS_DAYS` | 可选，自动删除多少天前的请求日志 (例如 1, 7, 30)           | `30`                                                  |
 | `SAFETY_SETTINGS`            | 可选，安全设置 (JSON 字符串格式)，用于配置内容安全阈值。示例值可能需要根据实际模型支持情况调整。 | `[{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "OFF"}, {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "OFF"}, {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "OFF"}, {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "OFF"}, {"category": "HARM_CATEGORY_CIVIC_INTEGRITY", "threshold": "BLOCK_NONE"}]` |
 | **图像生成相关**             |                                                          |                                                       |
 | `PAID_KEY`                   | 可选，付费版API Key，用于图片生成等高级功能                    | `your-paid-api-key`                                   |
@@ -188,6 +204,9 @@ app/
 | `STREAM_SHORT_TEXT_THRESHOLD`| 可选，短文本阈值                                               | `10`                                                  |
 | `STREAM_LONG_TEXT_THRESHOLD` | 可选，长文本阈值                                               | `50`                                                  |
 | `STREAM_CHUNK_SIZE`          | 可选，流式输出块大小                                           | `5`                                                   |
+| **伪流式 (Fake Stream) 相关** |                                                          |                                                       |
+| `FAKE_STREAM_ENABLED`        | 可选，是否启用伪流式传输，用于不支持流式的模型或场景           | `false`                                               |
+| `FAKE_STREAM_EMPTY_DATA_INTERVAL_SECONDS` | 可选，伪流式传输时发送心跳空数据的间隔秒数                   | `5`                                                   |
 
 ## ⚙️ API 端点
 

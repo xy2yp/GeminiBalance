@@ -1,6 +1,7 @@
 """
 数据库连接池模块
 """
+from pathlib import Path
 from databases import Database
 from sqlalchemy import create_engine, MetaData
 # from sqlalchemy.orm import sessionmaker # 不再需要
@@ -13,7 +14,11 @@ logger = get_database_logger()
 
 # 数据库URL
 if settings.DATABASE_TYPE == "sqlite":
-    DATABASE_URL = f"sqlite:///{settings.SQLITE_DATABASE}"
+    # 确保 data 目录存在
+    data_dir = Path("data")
+    data_dir.mkdir(exist_ok=True)
+    db_path = data_dir / settings.SQLITE_DATABASE
+    DATABASE_URL = f"sqlite:///{db_path}"
 elif settings.DATABASE_TYPE == "mysql":
     if settings.MYSQL_SOCKET:
         DATABASE_URL = f"mysql+pymysql://{settings.MYSQL_USER}:{settings.MYSQL_PASSWORD}@/{settings.MYSQL_DATABASE}?unix_socket={settings.MYSQL_SOCKET}"

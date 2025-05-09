@@ -88,6 +88,10 @@ class Settings(BaseSettings):
     STREAM_LONG_TEXT_THRESHOLD: int = DEFAULT_STREAM_LONG_TEXT_THRESHOLD
     STREAM_CHUNK_SIZE: int = DEFAULT_STREAM_CHUNK_SIZE
 
+    # 假流式配置 (Fake Streaming Configuration)
+    FAKE_STREAM_ENABLED: bool = False  # 是否启用假流式输出
+    FAKE_STREAM_EMPTY_DATA_INTERVAL_SECONDS: int = 5  # 假流式发送空数据的间隔时间（秒）
+
     # 调度器配置
     CHECK_INTERVAL_HOURS: int = 1  # 默认检查间隔为1小时
     TIMEZONE: str = "Asia/Shanghai"  # 默认时区
@@ -274,6 +278,12 @@ async def sync_initial_settings():
         updated_in_memory = False
 
         for key, db_value in db_settings_map.items():
+            if key == "DATABASE_TYPE":
+                logger.debug(
+                    f"Skipping update of '{key}' in memory from database. "
+                    "This setting is controlled by environment/dotenv."
+                )
+                continue
             if hasattr(settings, key):
                 target_type = Settings.__annotations__.get(key)
                 if target_type:
@@ -342,6 +352,13 @@ async def sync_initial_settings():
         existing_db_keys = set(db_settings_map.keys())
 
         for key, value in final_memory_settings.items():
+            if key == "DATABASE_TYPE":
+                logger.debug(
+                    f"Skipping synchronization of '{key}' to database. "
+                    "This setting is controlled by environment/dotenv."
+                )
+                continue
+
             # 序列化值为字符串或 JSON 字符串
             if isinstance(value, (list, dict)):  # 处理列表和字典
                 db_value = json.dumps(
