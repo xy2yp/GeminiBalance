@@ -201,43 +201,56 @@
 
     <!-- 底部版权 -->
     <div
-      class="fixed bottom-0 left-0 w-full py-3 bg-white bg-opacity-80 backdrop-blur-md text-center text-sm text-gray-800 border-t border-gray-200"
+      class="fixed bottom-0 left-0 w-full py-3 bg-white bg-opacity-80 backdrop-blur-md text-sm text-gray-800 border-t border-gray-200 flex flex-col items-center space-y-1"
     >
-      © <span id="copyright-year"></span> by
-      <a
-        href="https://linux.do/u/snaily"
-        target="_blank"
-        class="text-primary-600 hover:text-primary-800 transition duration-300"
-      >
-        <img
-          src="https://linux.do/user_avatar/linux.do/snaily/288/306510_2.gif"
-          alt="snaily"
-          class="inline-block w-5 h-5 rounded-full align-middle mr-1"
-        />snaily
-      </a>
-      |
-      <a
-        href="https://github.com/snailyp/gemini-balance"
-        target="_blank"
-        class="text-primary-600 hover:text-primary-800 transition duration-300"
-      >
-        <i class="fab fa-github"></i> GitHub
-      </a>
-      |
-      <a
-        href="https://afdian.com/a/snaily"
-        target="_blank"
-        class="text-primary-600 hover:text-primary-800 transition duration-300"
-      >
-        <i class="fas fa-drumstick-bite text-yellow-600"></i> 给作者加鸡腿
-      </a>
-      <span class="mx-1">|</span>
-      <span class="text-xs text-yellow-600 font-semibold">
-        <i class="fas fa-exclamation-triangle mr-1"></i>免费项目，谨防诈骗
-      </span>
-      <span id="version-info-container" class="inline-block">
-        <!-- Version info will be loaded here by JavaScript -->
-      </span>
+      <!-- 第一行 -->
+      <div class="flex items-center justify-center space-x-2">
+        <span>© <span id="copyright-year"></span> by</span>
+        <a
+          href="https://linux.do/u/snaily"
+          target="_blank"
+          class="text-primary-600 hover:text-primary-800 transition duration-300 flex items-center"
+        >
+          <img
+            src="https://linux.do/user_avatar/linux.do/snaily/288/306510_2.gif"
+            alt="snaily"
+            class="inline-block w-5 h-5 rounded-full align-middle mr-1"
+          />snaily
+        </a>
+        <span class="text-gray-400">|</span>
+        <a
+          href="https://github.com/snailyp/gemini-balance"
+          target="_blank"
+          class="text-primary-600 hover:text-primary-800 transition duration-300 flex items-center"
+        >
+          <i class="fab fa-github mr-1"></i> GitHub
+        </a>
+      </div>
+      <!-- 第二行 -->
+      <div class="flex items-center justify-center space-x-2 text-xs">
+        <a
+          href="https://gb-docs.snaily.top/guide/supportme.html"
+          target="_blank"
+          class="text-primary-600 hover:text-primary-800 transition duration-300 flex items-center"
+        >
+          <i class="fas fa-drumstick-bite text-yellow-600 mr-1"></i> 给作者加鸡腿
+        </a>
+        <span class="text-gray-400">|</span>
+        <a
+          href="https://gb-docs.snaily.top"
+          target="_blank"
+          class="text-primary-600 hover:text-primary-800 transition duration-300 flex items-center"
+        >
+          <i class="fas fa-book mr-1"></i> 在线文档
+        </a>
+        <span class="text-gray-400">|</span>
+        <span class="text-yellow-600 font-semibold flex items-center">
+          <i class="fas fa-exclamation-triangle mr-1"></i>免费项目，谨防诈骗
+        </span>
+        <span id="version-info-container" class="inline-flex items-center">
+          <!-- Version info will be loaded here by JavaScript -->
+        </span>
+      </div>
     </div>
 
     <!-- 通用JS -->

@@ -37,7 +37,7 @@ class GeminiResponseHandler(ResponseHandler):
 
 
 def _handle_openai_stream_response(
-    response: Dict[str, Any], model: str, finish_reason: str
+    response: Dict[str, Any], model: str, finish_reason: str, usage_metadata: Optional[Dict[str, Any]]
 ) -> Dict[str, Any]:
     text, tool_calls = _extract_result(
         response, model, stream=True, gemini_format=False
@@ -48,14 +48,16 @@ def _handle_openai_stream_response(
         delta = {"content": text, "role": "assistant"}
         if tool_calls:
             delta["tool_calls"] = tool_calls
-
-    return {
+    template_chunk = {
         "id": f"chatcmpl-{uuid.uuid4()}",
         "object": "chat.completion.chunk",
         "created": int(time.time()),
         "model": model,
         "choices": [{"index": 0, "delta": delta, "finish_reason": finish_reason}],
     }
+    if usage_metadata:
+        template_chunk["usage"] = {"prompt_tokens": usage_metadata.get("promptTokenCount", 0), "completion_tokens": usage_metadata.get("candidatesTokenCount",0), "total_tokens": usage_metadata.get("totalTokenCount", 0)}
+    return template_chunk
 
 
 def _handle_openai_normal_response(
@@ -101,7 +103,7 @@ class OpenAIResponseHandler(ResponseHandler):
         usage_metadata: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         if stream:
-            return _handle_openai_stream_response(response, model, finish_reason)
+            return _handle_openai_stream_response(response, model, finish_reason, usage_metadata)
         return _handle_openai_normal_response(response, model, finish_reason, usage_metadata)
 
     def handle_image_chat_response(
