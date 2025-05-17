@@ -53,16 +53,14 @@ class GeminiApiClient(ApiClient):
             url = f"{self.base_url}/models?key={api_key}"
             try:
                 response = await client.get(url)
-                response.raise_for_status()  # 如果状态码不是 2xx，则引发 HTTPStatusError
+                response.raise_for_status()
                 return response.json()
             except httpx.HTTPStatusError as e:
                 logger.error(f"获取模型列表失败: {e.response.status_code}")
                 logger.error(e.response.text)
-                # 返回 None 而不是抛出异常，以便上层处理
                 return None
             except httpx.RequestError as e:
                 logger.error(f"请求模型列表失败: {e}")
-                # 返回 None 而不是抛出异常
                 return None
             
     async def generate_content(self, payload: Dict[str, Any], model: str, api_key: str) -> Dict[str, Any]:

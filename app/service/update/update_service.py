@@ -7,11 +7,7 @@ from app.log.logger import get_update_logger
 
 logger = get_update_logger()
 
-# GitHub repository details are read from settings (defined in app/config/config.py or environment variables)
-
-# GITHUB_API_URL will be constructed inside the function to ensure settings are loaded
-
-VERSION_FILE_PATH = "VERSION" # Path relative to project root
+VERSION_FILE_PATH = "VERSION"
 
 async def check_for_updates() -> Tuple[bool, Optional[str], Optional[str]]:
     """
@@ -24,9 +20,6 @@ async def check_for_updates() -> Tuple[bool, Optional[str], Optional[str]]:
             - Optional[str]: 如果检查失败，则为错误消息，否则为 None。
     """
     try:
-        # Read current version from VERSION file
-        # Ensure the path is correct relative to the execution context or use absolute path if needed
-        # Assuming execution from project root d:/develop/pythonProjects/gemini-balance
         with open(VERSION_FILE_PATH, 'r', encoding='utf-8') as f:
             current_v = f.read().strip()
         if not current_v:
@@ -41,25 +34,22 @@ async def check_for_updates() -> Tuple[bool, Optional[str], Optional[str]]:
 
     logger.info(f"当前应用程序版本 (from {VERSION_FILE_PATH}): {current_v}")
 
-    # Check if repository details are configured in settings
     if not settings.GITHUB_REPO_OWNER or not settings.GITHUB_REPO_NAME or \
        settings.GITHUB_REPO_OWNER == "your_owner" or settings.GITHUB_REPO_NAME == "your_repo":
         logger.warning("GitHub repository owner/name not configured in settings. Skipping update check.")
         return False, None, "Update check skipped: Repository not configured in settings."
 
-    # Construct the API URL inside the function to ensure settings are loaded
     github_api_url = f"https://api.github.com/repos/{settings.GITHUB_REPO_OWNER}/{settings.GITHUB_REPO_NAME}/releases/latest"
-    logger.debug(f"Checking for updates at URL: {github_api_url}") # Log the URL for debugging
+    logger.debug(f"Checking for updates at URL: {github_api_url}")
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            # 添加 User-Agent 头，GitHub API 可能需要
             headers = {
                 "Accept": "application/vnd.github.v3+json",
-                "User-Agent": f"{settings.GITHUB_REPO_NAME}-UpdateChecker/1.0" # Use repo name from settings for User-Agent
+                "User-Agent": f"{settings.GITHUB_REPO_NAME}-UpdateChecker/1.0"
             }
-            response = await client.get(github_api_url, headers=headers) # Use the locally constructed URL
-            response.raise_for_status() # 对错误的 HTTP 状态码（4xx 或 5xx）抛出异常
+            response = await client.get(github_api_url, headers=headers)
+            response.raise_for_status()
 
             latest_release = response.json()
             latest_v_str = latest_release.get("tag_name")
@@ -68,7 +58,6 @@ async def check_for_updates() -> Tuple[bool, Optional[str], Optional[str]]:
                 logger.warning("在最新的 GitHub release 响应中找不到 'tag_name'。")
                 return False, None, "无法从 GitHub 解析最新版本。"
 
-            # 移除 tag 名称中可能存在的 'v' 前缀
             if latest_v_str.startswith('v'):
                 latest_v_str = latest_v_str[1:]
 
@@ -98,8 +87,6 @@ async def check_for_updates() -> Tuple[bool, Optional[str], Optional[str]]:
         logger.error(f"检查更新时发生网络错误: {e}")
         return False, None, "更新检查期间发生网络错误。"
     except version.InvalidVersion:
-        # Note: latest_v_str might not be defined if the error occurs before fetching it.
-        # Consider adding a check or default value for logging.
         latest_v_str_for_log = latest_v_str if 'latest_v_str' in locals() else 'N/A'
         logger.error(f"发现无效的版本格式。当前 (from {VERSION_FILE_PATH}): '{current_v}', 最新: '{latest_v_str_for_log}'")
         return False, None, "遇到无效的版本格式。"

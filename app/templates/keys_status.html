@@ -641,8 +641,8 @@ endblock %} {% block head_extra_styles %}
     background-color: rgba(245, 158, 11, 0.28) !important;
     color: #fde047 !important; /* Slightly lighter amber for text */
     border: 1px solid rgba(245, 158, 11, 0.45);
-    position: absolute; /* 移动到右上角 */
-    top: 0.75rem; /* 配合li的p-3内边距 */
+    position: absolute; /* 移动到右下角 */
+    bottom: 0.75rem; /* 配合li的p-3内边距 */
     right: 0.75rem;
     z-index: 5; /* 确保在其他元素之上 */
   }
@@ -653,6 +653,33 @@ endblock %} {% block head_extra_styles %}
     color: #fca5a5 !important; /* Standard danger text color often works well */
     border: 1px solid rgba(239, 68, 68, 0.45);
   }
+
+  /* Remove border from the last row's cells in API Call Details Modal table */
+  #apiCallDetailsContent table tr:last-child td {
+    border-bottom: none !important;
+  }
+
+  /* Restore success/failure status colors and icon colors within the API call details table */
+  #apiCallDetailsContent table td span[class*="text-success"],
+  #apiCallDetailsContent table td span[class*="success"] {
+    color: #6ee7b7 !important; /* Theme success green */
+  }
+  #apiCallDetailsContent table td span[class*="text-success"] i,
+  #apiCallDetailsContent table td span[class*="success"] i {
+    color: #6ee7b7 !important;
+  }
+
+  #apiCallDetailsContent table td span[class*="text-danger"],
+  #apiCallDetailsContent table td span[class*="failure"],
+  #apiCallDetailsContent table td span[class*="danger"] {
+    color: #fca5b3 !important; /* Theme failure red */
+  }
+  #apiCallDetailsContent table td span[class*="text-danger"] i,
+  #apiCallDetailsContent table td span[class*="failure"] i,
+  #apiCallDetailsContent table td span[class*="danger"] i {
+    color: #fca5b3 !important;
+  }
+  /* End of API Call Details Modal Specific Styling Adjustments */
 </style>
 {% endblock %} {% block head_extra_scripts %}
 <!-- keys_status.js needs to be loaded in head because it might be used by inline scripts -->

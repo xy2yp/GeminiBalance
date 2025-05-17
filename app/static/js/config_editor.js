@@ -10,8 +10,9 @@ const SHOW_CLASS = "show"; // For modals
 const API_KEY_REGEX = /AIzaSy\S{33}/g;
 const PROXY_REGEX =
   /(?:https?|socks5):\/\/(?:[^:@\/]+(?::[^@\/]+)?@)?(?:[^:\/\s]+)(?::\d+)?/g;
+const VERTEX_API_KEY_REGEX = /AQ\.[a-zA-Z0-9_]{50}/g; // 新增 Vertex API Key 正则
 const MASKED_VALUE = "••••••••";
-
+ 
 // DOM Elements - Global Scope for frequently accessed elements
 const safetySettingsContainer = document.getElementById(
   "SAFETY_SETTINGS_container"
@@ -30,7 +31,17 @@ const bulkDeleteProxyModal = document.getElementById("bulkDeleteProxyModal");
 const bulkDeleteProxyInput = document.getElementById("bulkDeleteProxyInput");
 const resetConfirmModal = document.getElementById("resetConfirmModal");
 const configForm = document.getElementById("configForm"); // Added for frequent use
-
+ 
+// Vertex API Key Modal Elements
+const vertexApiKeyModal = document.getElementById("vertexApiKeyModal");
+const vertexApiKeyBulkInput = document.getElementById("vertexApiKeyBulkInput");
+const bulkDeleteVertexApiKeyModal = document.getElementById(
+  "bulkDeleteVertexApiKeyModal"
+);
+const bulkDeleteVertexApiKeyInput = document.getElementById(
+  "bulkDeleteVertexApiKeyInput"
+);
+ 
 // Model Helper Modal Elements
 const modelHelperModal = document.getElementById("modelHelperModal");
 const modelHelperTitleElement = document.getElementById("modelHelperTitle");
@@ -244,6 +255,8 @@ document.addEventListener("DOMContentLoaded", function () {
       bulkDeleteApiKeyModal,
       proxyModal,
       bulkDeleteProxyModal,
+      vertexApiKeyModal, // 新增
+      bulkDeleteVertexApiKeyModal, // 新增
       modelHelperModal,
     ];
     modals.forEach((modal) => {
@@ -371,7 +384,71 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   initializeSensitiveFields(); // Initialize sensitive field handling
-
+ 
+  // Vertex API Key Modal Elements and Events
+  const addVertexApiKeyBtn = document.getElementById("addVertexApiKeyBtn");
+  const closeVertexApiKeyModalBtn = document.getElementById(
+    "closeVertexApiKeyModalBtn"
+  );
+  const cancelAddVertexApiKeyBtn = document.getElementById(
+    "cancelAddVertexApiKeyBtn"
+  );
+  const confirmAddVertexApiKeyBtn = document.getElementById(
+    "confirmAddVertexApiKeyBtn"
+  );
+  const bulkDeleteVertexApiKeyBtn = document.getElementById(
+    "bulkDeleteVertexApiKeyBtn"
+  );
+  const closeBulkDeleteVertexModalBtn = document.getElementById(
+    "closeBulkDeleteVertexModalBtn"
+  );
+  const cancelBulkDeleteVertexApiKeyBtn = document.getElementById(
+    "cancelBulkDeleteVertexApiKeyBtn"
+  );
+  const confirmBulkDeleteVertexApiKeyBtn = document.getElementById(
+    "confirmBulkDeleteVertexApiKeyBtn"
+  );
+ 
+  if (addVertexApiKeyBtn) {
+    addVertexApiKeyBtn.addEventListener("click", () => {
+      openModal(vertexApiKeyModal);
+      if (vertexApiKeyBulkInput) vertexApiKeyBulkInput.value = "";
+    });
+  }
+  if (closeVertexApiKeyModalBtn)
+    closeVertexApiKeyModalBtn.addEventListener("click", () =>
+      closeModal(vertexApiKeyModal)
+    );
+  if (cancelAddVertexApiKeyBtn)
+    cancelAddVertexApiKeyBtn.addEventListener("click", () =>
+      closeModal(vertexApiKeyModal)
+    );
+  if (confirmAddVertexApiKeyBtn)
+    confirmAddVertexApiKeyBtn.addEventListener(
+      "click",
+      handleBulkAddVertexApiKeys
+    );
+ 
+  if (bulkDeleteVertexApiKeyBtn) {
+    bulkDeleteVertexApiKeyBtn.addEventListener("click", () => {
+      openModal(bulkDeleteVertexApiKeyModal);
+      if (bulkDeleteVertexApiKeyInput) bulkDeleteVertexApiKeyInput.value = "";
+    });
+  }
+  if (closeBulkDeleteVertexModalBtn)
+    closeBulkDeleteVertexModalBtn.addEventListener("click", () =>
+      closeModal(bulkDeleteVertexApiKeyModal)
+    );
+  if (cancelBulkDeleteVertexApiKeyBtn)
+    cancelBulkDeleteVertexApiKeyBtn.addEventListener("click", () =>
+      closeModal(bulkDeleteVertexApiKeyModal)
+    );
+  if (confirmBulkDeleteVertexApiKeyBtn)
+    confirmBulkDeleteVertexApiKeyBtn.addEventListener(
+      "click",
+      handleBulkDeleteVertexApiKeys
+    );
+ 
   // Model Helper Modal Event Listeners
   if (closeModelHelperModalBtn) {
     closeModelHelperModalBtn.addEventListener("click", () =>
@@ -591,6 +668,14 @@ async function initConfig() {
     ) {
       config.FILTERED_MODELS = ["gemini-1.0-pro-latest"];
     }
+    // --- 新增：处理 VERTEX_API_KEYS 默认值 ---
+    if (!config.VERTEX_API_KEYS || !Array.isArray(config.VERTEX_API_KEYS)) {
+      config.VERTEX_API_KEYS = [];
+    }
+    // --- 新增：处理 VERTEX_EXPRESS_BASE_URL 默认值 ---
+    if (typeof config.VERTEX_EXPRESS_BASE_URL === "undefined") {
+      config.VERTEX_EXPRESS_BASE_URL = "";
+    }
     // --- 新增：处理 PROXIES 默认值 ---
     if (!config.PROXIES || !Array.isArray(config.PROXIES)) {
       config.PROXIES = []; // 默认为空数组
@@ -666,10 +751,12 @@ async function initConfig() {
       SEARCH_MODELS: ["gemini-1.5-flash-latest"],
       FILTERED_MODELS: ["gemini-1.0-pro-latest"],
       UPLOAD_PROVIDER: "smms",
-      PROXIES: [], // 添加默认值
+      PROXIES: [],
+      VERTEX_API_KEYS: [], // 确保默认值存在
+      VERTEX_EXPRESS_BASE_URL: "", // 确保默认值存在
       THINKING_MODELS: [],
       THINKING_BUDGET_MAP: {},
-      AUTO_DELETE_ERROR_LOGS_ENABLED: false, // 新增默认值
+      AUTO_DELETE_ERROR_LOGS_ENABLED: false,
       AUTO_DELETE_ERROR_LOGS_DAYS: 7, // 新增默认值
       AUTO_DELETE_REQUEST_LOGS_ENABLED: false, // 新增默认值
       AUTO_DELETE_REQUEST_LOGS_DAYS: 30, // 新增默认值
@@ -678,7 +765,7 @@ async function initConfig() {
       FAKE_STREAM_EMPTY_DATA_INTERVAL_SECONDS: 5,
       // --- 结束：处理假流式配置的默认值 ---
     };
-
+ 
     populateForm(defaultConfig);
     if (configForm) {
       // Ensure form exists
@@ -1090,7 +1177,126 @@ function handleBulkDeleteProxies() {
   }
   bulkDeleteProxyInput.value = "";
 }
-
+ 
+/**
+ * Handles the bulk addition of Vertex API keys from the modal input.
+ */
+function handleBulkAddVertexApiKeys() {
+  const vertexApiKeyContainer = document.getElementById(
+    "VERTEX_API_KEYS_container"
+  );
+  if (
+    !vertexApiKeyBulkInput ||
+    !vertexApiKeyContainer ||
+    !vertexApiKeyModal
+  ) {
+    return;
+  }
+ 
+  const bulkText = vertexApiKeyBulkInput.value;
+  const extractedKeys = bulkText.match(VERTEX_API_KEY_REGEX) || [];
+ 
+  const currentKeyInputs = vertexApiKeyContainer.querySelectorAll(
+    `.${ARRAY_INPUT_CLASS}.${SENSITIVE_INPUT_CLASS}`
+  );
+  let currentKeys = Array.from(currentKeyInputs)
+    .map((input) => {
+      return input.hasAttribute("data-real-value")
+        ? input.getAttribute("data-real-value")
+        : input.value;
+    })
+    .filter((key) => key && key.trim() !== "" && key !== MASKED_VALUE);
+ 
+  const combinedKeys = new Set([...currentKeys, ...extractedKeys]);
+  const uniqueKeys = Array.from(combinedKeys);
+ 
+  vertexApiKeyContainer.innerHTML = ""; // Clear existing items
+ 
+  uniqueKeys.forEach((key) => {
+    addArrayItemWithValue("VERTEX_API_KEYS", key); // VERTEX_API_KEYS are sensitive
+  });
+ 
+  // Ensure new sensitive inputs are masked
+  const newKeyInputs = vertexApiKeyContainer.querySelectorAll(
+    `.${ARRAY_INPUT_CLASS}.${SENSITIVE_INPUT_CLASS}`
+  );
+  newKeyInputs.forEach((input) => {
+    if (configForm && typeof initializeSensitiveFields === "function") {
+      const focusoutEvent = new Event("focusout", {
+        bubbles: true,
+        cancelable: true,
+      });
+      input.dispatchEvent(focusoutEvent);
+    }
+  });
+ 
+  closeModal(vertexApiKeyModal);
+  showNotification(
+    `添加/更新了 ${uniqueKeys.length} 个唯一 Vertex 密钥`,
+    "success"
+  );
+  vertexApiKeyBulkInput.value = "";
+}
+ 
+/**
+ * Handles the bulk deletion of Vertex API keys based on input from the modal.
+ */
+function handleBulkDeleteVertexApiKeys() {
+  const vertexApiKeyContainer = document.getElementById(
+    "VERTEX_API_KEYS_container"
+  );
+  if (
+    !bulkDeleteVertexApiKeyInput ||
+    !vertexApiKeyContainer ||
+    !bulkDeleteVertexApiKeyModal
+  ) {
+    return;
+  }
+ 
+  const bulkText = bulkDeleteVertexApiKeyInput.value;
+  if (!bulkText.trim()) {
+    showNotification("请粘贴需要删除的 Vertex API 密钥", "warning");
+    return;
+  }
+ 
+  const keysToDelete = new Set(bulkText.match(VERTEX_API_KEY_REGEX) || []);
+ 
+  if (keysToDelete.size === 0) {
+    showNotification(
+      "未在输入内容中提取到有效的 Vertex API 密钥格式",
+      "warning"
+    );
+    return;
+  }
+ 
+  const keyItems = vertexApiKeyContainer.querySelectorAll(`.${ARRAY_ITEM_CLASS}`);
+  let deleteCount = 0;
+ 
+  keyItems.forEach((item) => {
+    const input = item.querySelector(
+      `.${ARRAY_INPUT_CLASS}.${SENSITIVE_INPUT_CLASS}`
+    );
+    const realValue =
+      input &&
+      (input.hasAttribute("data-real-value")
+        ? input.getAttribute("data-real-value")
+        : input.value);
+    if (realValue && keysToDelete.has(realValue)) {
+      item.remove();
+      deleteCount++;
+    }
+  });
+ 
+  closeModal(bulkDeleteVertexApiKeyModal);
+ 
+  if (deleteCount > 0) {
+    showNotification(`成功删除了 ${deleteCount} 个匹配的 Vertex 密钥`, "success");
+  } else {
+    showNotification("列表中未找到您输入的任何 Vertex 密钥进行删除", "info");
+  }
+  bulkDeleteVertexApiKeyInput.value = "";
+}
+ 
 /**
  * Switches the active configuration tab.
  * @param {string} tabId - The ID of the tab to switch to.
@@ -1231,9 +1437,11 @@ function addArrayItemWithValue(key, value) {
 
   const isThinkingModel = key === "THINKING_MODELS";
   const isAllowedToken = key === "ALLOWED_TOKENS";
-  const isSensitive = key === "API_KEYS" || isAllowedToken;
+  const isVertexApiKey = key === "VERTEX_API_KEYS"; // 新增判断
+  const isSensitive =
+    key === "API_KEYS" || isAllowedToken || isVertexApiKey; // 更新敏感判断
   const modelId = isThinkingModel ? generateUUID() : null;
-
+ 
   const arrayItem = document.createElement("div");
   arrayItem.className = `${ARRAY_ITEM_CLASS} flex items-center mb-2 gap-2`;
   if (isThinkingModel) {

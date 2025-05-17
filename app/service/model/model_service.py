@@ -10,8 +10,7 @@ logger = get_model_logger()
 
 class ModelService:
     async def get_gemini_models(self, api_key: str) -> Optional[Dict[str, Any]]:
-        """使用 GeminiApiClient 获取并过滤模型列表"""
-        api_client = GeminiApiClient(base_url=settings.BASE_URL) # 实例化客户端
+        api_client = GeminiApiClient(base_url=settings.BASE_URL)
         gemini_models = await api_client.get_models(api_key)
 
         if gemini_models is None:

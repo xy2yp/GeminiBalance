@@ -223,3 +223,11 @@ def get_openai_compatible_logger():
 def get_error_log_logger():
     return Logger.setup_logger("error_log")
 
+
+def get_request_log_logger():
+    return Logger.setup_logger("request_log")
+
+
+def get_vertex_express_logger():
+    return Logger.setup_logger("vertex_express")
+

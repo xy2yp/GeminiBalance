@@ -137,7 +137,7 @@ class ImageCreateService:
                     )
 
             response_data = {
-                "created": int(time.time()),  # Current timestamp
+                "created": int(time.time()),
                 "data": images_data,
             }
             return response_data

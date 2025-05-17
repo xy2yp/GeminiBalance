@@ -7,15 +7,12 @@ import base64
 import requests
 from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
-import logging # Import logging
+import logging
 
 from app.core.constants import DATA_URL_PATTERN, IMAGE_URL_PATTERN, VALID_IMAGE_RATIOS
 
-# Define logger for helper functions if needed, or use specific loggers
-helper_logger = logging.getLogger("app.utils") # Or use a more specific logger if available
+helper_logger = logging.getLogger("app.utils")
 
-# Define project root and version file path here for get_current_version
-# Assuming this file is at app/utils/helpers.py
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 VERSION_FILE_PATH = PROJECT_ROOT / "VERSION"
 
@@ -159,9 +156,8 @@ def is_valid_api_key(key: str) -> bool:
 
 def get_current_version(default_version: str = "0.0.0") -> str:
     """Reads the current version from the VERSION file."""
-    version_file = VERSION_FILE_PATH # Use Path object defined above
+    version_file = VERSION_FILE_PATH
     try:
-        # Use Path object's open method
         with version_file.open('r', encoding='utf-8') as f:
             version = f.read().strip()
         if not version:

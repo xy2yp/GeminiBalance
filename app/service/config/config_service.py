@@ -55,7 +55,7 @@ class ConfigService:
             # 处理不同类型的值
             if isinstance(value, list):
                 db_value = json.dumps(value)
-            elif isinstance(value, dict):  # 新增对 dict 类型的处理
+            elif isinstance(value, dict):
                 db_value = json.dumps(value)
             elif isinstance(value, bool):
                 db_value = str(value).lower()
@@ -76,7 +76,6 @@ class ConfigService:
             }
 
             if key in existing_keys:
-                # Preserve original description if not explicitly provided
                 data["description"] = existing_settings_map[key].get(
                     "description", description
                 )
@@ -111,17 +110,15 @@ class ConfigService:
                         logger.info(f"Updated {len(settings_to_update)} settings.")
             except Exception as e:
                 logger.error(f"Failed to bulk update/insert settings: {str(e)}")
-                raise  # Re-raise the exception after logging
+                raise
 
         # 重置并重新初始化 KeyManager
         try:
             await reset_key_manager_instance()
-            await get_key_manager_instance(settings.API_KEYS)
+            await get_key_manager_instance(settings.API_KEYS, settings.VERTEX_API_KEYS)
             logger.info("KeyManager instance re-initialized with updated settings.")
         except Exception as e:
             logger.error(f"Failed to re-initialize KeyManager: {str(e)}")
-            # Decide if this error should prevent returning the updated config
-            # For now, we log the error and continue
 
         return await ConfigService.get_config()
 
@@ -157,7 +154,7 @@ class ConfigService:
         deleted_count = 0
         not_found_keys: List[str] = []
 
-        current_api_keys = list(settings.API_KEYS)  # 创建副本以进行修改
+        current_api_keys = list(settings.API_KEYS)
         keys_actually_removed: List[str] = []
 
         for key_to_del in keys_to_delete:
@@ -169,7 +166,7 @@ class ConfigService:
                 not_found_keys.append(key_to_del)
 
         if deleted_count > 0:
-            settings.API_KEYS = current_api_keys  # 更新内存中的 settings
+            settings.API_KEYS = current_api_keys
             await ConfigService.update_config({"API_KEYS": settings.API_KEYS})
             logger.info(
                 f"成功删除 {deleted_count} 个密钥。密钥: {keys_actually_removed}"
@@ -185,9 +182,9 @@ class ConfigService:
             }
         else:
             message = "没有密钥被删除。"
-            if not_found_keys:  # 如果提供了密钥但都未找到
+            if not_found_keys:
                 message = f"所有 {len(not_found_keys)} 个指定的密钥均未找到: {not_found_keys}。"
-            elif not keys_to_delete:  # 如果 keys_to_delete 列表为空
+            elif not keys_to_delete:
                 message = "未指定要删除的密钥。"
             logger.warning(message)
             return {
@@ -244,13 +241,11 @@ class ConfigService:
             models = await model_service.get_gemini_openai_models(api_key)
             return models
         except HTTPException as e:
-            # Re-raise HTTPExceptions directly if they are already specific
             raise e
         except Exception as e:
             logger.error(
                 f"Failed to fetch models for UI in ConfigService: {e}", exc_info=True
             )
-            # Raise a generic HTTPException for other errors
             raise HTTPException(
                 status_code=500, detail=f"Failed to fetch models for UI: {str(e)}"
             )

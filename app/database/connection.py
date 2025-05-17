@@ -4,7 +4,6 @@
 from pathlib import Path
 from databases import Database
 from sqlalchemy import create_engine, MetaData
-# from sqlalchemy.orm import sessionmaker # 不再需要
 from sqlalchemy.ext.declarative import declarative_base
 
 from app.config.config import settings
@@ -46,11 +45,8 @@ Base = declarative_base(metadata=metadata)
 if settings.DATABASE_TYPE == "sqlite":
     database = Database(DATABASE_URL)
 else:
-    database = Database(DATABASE_URL, min_size=5, max_size=20, pool_recycle=1800) # Reduced recycle time to 30 mins
+    database = Database(DATABASE_URL, min_size=5, max_size=20, pool_recycle=1800)
 
-# 移除了 SessionLocal 和 get_db 函数
-
-# --- Async connection functions for lifespan/async routes ---
 async def connect_to_db():
     """
     连接到数据库

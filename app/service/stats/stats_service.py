@@ -41,7 +41,7 @@ class StatsService:
                             ),
                             1,
                         ),
-                        (RequestLog.status_code is None, 1),  # type: ignore
+                        (RequestLog.status_code is None, 1),
                         else_=0,
                     )
                 ).label("failure"),
@@ -96,7 +96,7 @@ class StatsService:
                             ),
                             1,
                         ),
-                        (RequestLog.status_code is None, 1),  # type: ignore
+                        (RequestLog.status_code is None, 1),
                         else_=0,
                     )
                 ).label("failure"),
@@ -166,25 +166,24 @@ class StatsService:
                     RequestLog.request_time.label("timestamp"),
                     RequestLog.api_key.label("key"),
                     RequestLog.model_name.label("model"),
-                    RequestLog.status_code,  # We might need to map this to 'success'/'failure' later
+                    RequestLog.status_code,
                 )
                 .where(RequestLog.request_time >= start_time)
                 .order_by(RequestLog.request_time.desc())
-            )  # Order by most recent first
+            )
 
             results = await database.fetch_all(query)
 
-            # Convert results to list of dicts and map status_code
             details = []
             for row in results:
-                status = "failure"  # 默认状态为 failure，如果 status_code 有效且在 200-299 范围内则更新为 success
-                if row["status_code"] is not None:  # 检查 status_code 是否为空
+                status = "failure"
+                if row["status_code"] is not None:
                     status = "success" if 200 <= row["status_code"] < 300 else "failure"
                 details.append(
                     {
                         "timestamp": row[
                             "timestamp"
-                        ].isoformat(),  # Use ISO format for JS compatibility
+                        ].isoformat(),
                         "key": row["key"],
                         "model": row["model"],
                         "status": status,
@@ -197,7 +196,6 @@ class StatsService:
 
         except Exception as e:
             logger.error(f"Failed to get API call details for period '{period}': {e}")
-            # Re-raise the exception to be handled by the route
             raise
 
     async def get_key_usage_details_last_24h(self, key: str) -> dict | None:
@@ -225,10 +223,10 @@ class StatsService:
                 .where(
                     RequestLog.api_key == key,
                     RequestLog.request_time >= cutoff_time,
-                    RequestLog.model_name.isnot(None),  # Ensure model_name is not null
+                    RequestLog.model_name.isnot(None),
                 )
                 .group_by(RequestLog.model_name)
-                .order_by(func.count(RequestLog.id).desc())  # Order by count descending
+                .order_by(func.count(RequestLog.id).desc())
             )
 
             results = await database.fetch_all(query)
@@ -237,7 +235,7 @@ class StatsService:
                 logger.info(
                     f"No usage details found for key ending in ...{key[-4:]} in the last 24h."
                 )
-                return {}  # Return empty dict if no records found
+                return {}
 
             usage_details = {row["model_name"]: row["call_count"] for row in results}
             logger.info(
@@ -250,6 +248,4 @@ class StatsService:
                 f"Failed to get key usage details for key ending in ...{key[-4:]}: {e}",
                 exc_info=True,
             )
-            # Depending on requirements, you might return None or raise the exception
-            # Raising allows the route handler to return a 500 error.
-            raise  # Re-raise the exception
+            raise

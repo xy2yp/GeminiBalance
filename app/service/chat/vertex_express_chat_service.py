@@ -131,7 +131,7 @@ class GeminiChatService:
         self, original_response: Dict[str, Any], text: str
     ) -> Dict[str, Any]:
         """创建包含指定文本的响应"""
-        response_copy = json.loads(json.dumps(original_response))
+        response_copy = json.loads(json.dumps(original_response))  # 深拷贝
         if response_copy.get("candidates") and response_copy["candidates"][0].get(
             "content", {}
         ).get("parts"):
@@ -200,7 +200,7 @@ class GeminiChatService:
             request_datetime = datetime.datetime.now()
             start_time = time.perf_counter()
             current_attempt_key = api_key
-            final_api_key = current_attempt_key
+            final_api_key = current_attempt_key # Update final key used
             try:
                 async for line in self.api_client.stream_generate_content(
                     payload, model, current_attempt_key

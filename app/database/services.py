@@ -71,7 +71,7 @@ async def update_setting(key: str, value: str, description: Optional[str] = None
                 .values(
                     value=value,
                     description=description if description else setting["description"],
-                    updated_at=datetime.now() # Use datetime.now()
+                    updated_at=datetime.now()
                 )
             )
             await database.execute(query)
@@ -85,8 +85,8 @@ async def update_setting(key: str, value: str, description: Optional[str] = None
                     key=key,
                     value=value,
                     description=description,
-                    created_at=datetime.now(), # Use datetime.now()
-                    updated_at=datetime.now() # Use datetime.now()
+                    created_at=datetime.now(),
+                    updated_at=datetime.now()
                 )
             )
             await database.execute(query)
@@ -158,8 +158,8 @@ async def get_error_logs(
     error_code_search: Optional[str] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    sort_by: str = 'id',        # 新增排序字段
-    sort_order: str = 'desc'   # 新增排序顺序 ('asc' or 'desc')
+    sort_by: str = 'id',
+    sort_order: str = 'desc'
 ) -> List[Dict[str, Any]]:
     """
     获取错误日志，支持搜索、日期过滤和排序
@@ -189,7 +189,6 @@ async def get_error_logs(
             ErrorLog.request_time
         )
         
-        # Apply filters
         if key_search:
             query = query.where(ErrorLog.gemini_key.ilike(f"%{key_search}%"))
         if error_search:
@@ -200,41 +199,33 @@ async def get_error_logs(
         if start_date:
             query = query.where(ErrorLog.request_time >= start_date)
         if end_date:
-            # Use the datetime object directly for comparison
             query = query.where(ErrorLog.request_time < end_date)
         if error_code_search:
             try:
-                # Attempt to convert search string to integer for exact match
                 error_code_int = int(error_code_search)
                 query = query.where(ErrorLog.error_code == error_code_int)
             except ValueError:
-                # If conversion fails, log a warning and potentially skip this filter
-                # or handle as needed (e.g., return no results for invalid code format)
                 logger.warning(f"Invalid format for error_code_search: '{error_code_search}'. Expected an integer. Skipping error code filter.")
-                # Optionally, force no results if the format is invalid:
-                # query = query.where(False) # This ensures no rows are returned
 
-        # 添加排序逻辑
-        sort_column = getattr(ErrorLog, sort_by, ErrorLog.id) # 获取排序字段，默认为 id
+        sort_column = getattr(ErrorLog, sort_by, ErrorLog.id)
         if sort_order.lower() == 'asc':
             query = query.order_by(asc(sort_column))
         else:
             query = query.order_by(desc(sort_column))
 
-        # Apply limit and offset
         query = query.limit(limit).offset(offset)
 
         result = await database.fetch_all(query)
         return [dict(row) for row in result]
     except Exception as e:
-        logger.exception(f"Failed to get error logs with filters: {str(e)}") # Use exception for stack trace
+        logger.exception(f"Failed to get error logs with filters: {str(e)}")
         raise
 
 
 async def get_error_logs_count(
     key_search: Optional[str] = None,
     error_search: Optional[str] = None,
-    error_code_search: Optional[str] = None, # Added error code search
+    error_code_search: Optional[str] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None
 ) -> int:
@@ -254,7 +245,6 @@ async def get_error_logs_count(
     try:
         query = select(func.count()).select_from(ErrorLog)
 
-        # Apply the same filters as get_error_logs
         if key_search:
             query = query.where(ErrorLog.gemini_key.ilike(f"%{key_search}%"))
         if error_search:
@@ -265,23 +255,19 @@ async def get_error_logs_count(
         if start_date:
             query = query.where(ErrorLog.request_time >= start_date)
         if end_date:
-            # Use the datetime object directly for comparison
             query = query.where(ErrorLog.request_time < end_date)
         if error_code_search:
             try:
-                # Attempt to convert search string to integer for exact match
                 error_code_int = int(error_code_search)
                 query = query.where(ErrorLog.error_code == error_code_int)
             except ValueError:
-                # If conversion fails, log a warning and potentially skip this filter
                 logger.warning(f"Invalid format for error_code_search in count: '{error_code_search}'. Expected an integer. Skipping error code filter.")
-                # Optionally, force count to 0 if the format is invalid:
-                # return 0 # Or query = query.where(False) before fetching
+
 
         count_result = await database.fetch_one(query)
         return count_result[0] if count_result else 0
     except Exception as e:
-        logger.exception(f"Failed to count error logs with filters: {str(e)}") # Use exception for stack trace
+        logger.exception(f"Failed to count error logs with filters: {str(e)}")
         raise
 
 
@@ -307,7 +293,7 @@ async def get_error_log_details(log_id: int) -> Optional[Dict[str, Any]]:
                 try:
                     log_dict['request_msg'] = json.dumps(log_dict['request_msg'], ensure_ascii=False, indent=2)
                 except TypeError:
-                    log_dict['request_msg'] = str(log_dict['request_msg']) # Fallback to string
+                    log_dict['request_msg'] = str(log_dict['request_msg'])
             return log_dict
         else:
             return None
@@ -315,7 +301,6 @@ async def get_error_log_details(log_id: int) -> Optional[Dict[str, Any]]:
         logger.exception(f"Failed to get error log details for ID {log_id}: {str(e)}")
         raise
 
-# --- 异步删除函数 (使用 databases 库) ---
 
 async def delete_error_logs_by_ids(log_ids: List[int]) -> int:
     """
@@ -345,7 +330,7 @@ async def delete_error_logs_by_ids(log_ids: List[int]) -> int:
     except Exception as e:
         # 数据库连接或执行错误
         logger.error(f"Error during bulk deletion of error logs {log_ids}: {e}", exc_info=True)
-        raise # Re-raise the exception for the router to handle
+        raise
 
 async def delete_error_log_by_id(log_id: int) -> bool:
     """
@@ -364,7 +349,7 @@ async def delete_error_log_by_id(log_id: int) -> bool:
 
         if not exists:
             logger.warning(f"Attempted to delete non-existent error log with ID: {log_id}")
-            return False # 或者可以抛出 404 异常，由路由处理
+            return False
 
         # 执行删除
         delete_query = delete(ErrorLog).where(ErrorLog.id == log_id)
@@ -373,10 +358,36 @@ async def delete_error_log_by_id(log_id: int) -> bool:
         return True
     except Exception as e:
         logger.error(f"Error deleting error log with ID {log_id}: {e}", exc_info=True)
-        raise # Re-raise the exception for the router to handle
-
-# --- RequestLog Services (保持异步) ---
-
+        raise
+ 
+ 
+async def delete_all_error_logs() -> int:
+    """
+    删除所有错误日志条目。
+ 
+    Returns:
+        int: 被删除的错误日志数量。
+    """
+    try:
+        # 1. 获取删除前的总数
+        count_query = select(func.count()).select_from(ErrorLog)
+        total_to_delete = await database.fetch_val(count_query)
+ 
+        if total_to_delete == 0:
+            logger.info("No error logs found to delete.")
+            return 0
+ 
+        # 2. 执行删除操作
+        delete_query = delete(ErrorLog)
+        await database.execute(delete_query)
+        
+        logger.info(f"Successfully deleted all {total_to_delete} error logs.")
+        return total_to_delete
+    except Exception as e:
+        logger.error(f"Failed to delete all error logs: {str(e)}", exc_info=True)
+        raise
+ 
+ 
 # 新增函数：添加请求日志
 async def add_request_log(
     model_name: Optional[str],
@@ -412,7 +423,6 @@ async def add_request_log(
             latency_ms=latency_ms
         )
         await database.execute(query)
-        # logger.debug(f"Added request log: key={api_key[:4]}..., success={is_success}, model={model_name}") # Use debug level
         return True
     except Exception as e:
         logger.error(f"Failed to add request log: {str(e)}")

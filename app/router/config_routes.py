@@ -55,7 +55,6 @@ async def reset_config(request: Request):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-# Pydantic model for bulk delete request
 class DeleteKeysRequest(BaseModel):
     keys: List[str] = Field(..., description="List of API keys to delete")
 
@@ -70,9 +69,6 @@ async def delete_single_key(key_to_delete: str, request: Request):
         logger.info(f"Attempting to delete key: {key_to_delete}")
         result = await ConfigService.delete_key(key_to_delete)
         if not result.get("success"):
-            # Optionally, translate specific errors to HTTP status codes
-            # For now, let's assume 400 for any failure from service if not found,
-            # or 500 if it was an unexpected error (though service should handle that)
             raise HTTPException(
                 status_code=(
                     404 if "not found" in result.get("message", "").lower() else 400
@@ -81,7 +77,6 @@ async def delete_single_key(key_to_delete: str, request: Request):
             )
         return result
     except HTTPException as e:
-        # Re-raise HTTPExceptions directly
         raise e
     except Exception as e:
         logger.error(f"Error deleting key '{key_to_delete}': {e}", exc_info=True)
@@ -104,14 +99,10 @@ async def delete_selected_keys_route(
     try:
         logger.info(f"Attempting to bulk delete {len(delete_request.keys)} keys.")
         result = await ConfigService.delete_selected_keys(delete_request.keys)
-        # Similar to single delete, we can check result["success"]
         if not result.get("success") and result.get("deleted_count", 0) == 0:
-            # If no keys were actually deleted, it might be a client error (e.g., all keys not found)
-            # or an empty list was somehow passed despite the check above.
             raise HTTPException(
                 status_code=400, detail=result.get("message", "Failed to delete keys.")
             )
-        # If some keys were deleted but others not found, it's still a partial success, return 200 with details.
         return result
     except HTTPException as e:
         raise e

@@ -79,7 +79,6 @@ class OpenAICompatiableService:
             is_success = False
             error_log_msg = str(e)
             logger.error(f"Normal API call failed with error: {error_log_msg}")
-            # Try to parse status code from exception
             match = re.search(r"status code (\d+)", error_log_msg)
             if match:
                 status_code = int(match.group(1))
@@ -132,7 +131,7 @@ class OpenAICompatiableService:
                 logger.info("Streaming completed successfully")
                 is_success = True
                 status_code = 200
-                break  # 成功后退出循环
+                break
             except Exception as e:
                 retries += 1
                 is_success = False
@@ -140,14 +139,12 @@ class OpenAICompatiableService:
                 logger.warning(
                     f"Streaming API call failed with error: {error_log_msg}. Attempt {retries} of {max_retries}"
                 )
-                # Parse error code for logging
                 match = re.search(r"status code (\d+)", error_log_msg)
                 if match:
                     status_code = int(match.group(1))
                 else:
                     status_code = 500
 
-                # Log error to error log table
                 await add_error_log(
                     gemini_key=current_attempt_key,
                     model_name=model,
@@ -157,8 +154,6 @@ class OpenAICompatiableService:
                     request_msg=payload,
                 )
 
-                # Attempt to switch API Key
-                # Ensure key_manager is available (might need adjustment if not always passed)
                 if self.key_manager:
                     api_key = await self.key_manager.handle_api_failure(
                         current_attempt_key, retries
@@ -178,7 +173,6 @@ class OpenAICompatiableService:
                     logger.error(f"Max retries ({max_retries}) reached for streaming.")
                     break
             finally:
-                # Log the final outcome of the streaming request
                 end_time = time.perf_counter()
                 latency_ms = int((end_time - start_time) * 1000)
                 await add_request_log(
@@ -189,7 +183,6 @@ class OpenAICompatiableService:
                     latency_ms=latency_ms,
                     request_time=request_datetime,
                 )
-                # If the loop finished due to failure, yield error and DONE
                 if not is_success and retries >= max_retries:
                     yield f"data: {json.dumps({'error': 'Streaming failed after retries'})}\n\n"
                     yield "data: [DONE]\n\n"

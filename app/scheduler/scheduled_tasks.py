@@ -58,21 +58,18 @@ async def check_failed_keys():
                     contents=[
                         GeminiContent(
                             role="user",
-                            parts=[{"text": "hi"}],  # 使用简单的文本进行验证
+                            parts=[{"text": "hi"}],
                         )
                     ]
                 )
-                # 调用 generate_content 进行验证
                 await chat_service.generate_content(
-                    settings.TEST_MODEL, gemini_request, key  # 使用配置中定义的测试模型
+                    settings.TEST_MODEL, gemini_request, key
                 )
-                # 如果没有抛出异常，说明 key 有效
                 logger.info(
                     f"Key {log_key} verification successful. Resetting failure count."
                 )
                 await key_manager.reset_key_failure_count(key)
             except Exception as e:
-                # 验证失败，增加失败计数
                 logger.warning(
                     f"Key {log_key} verification failed: {str(e)}. Incrementing failure count."
                 )

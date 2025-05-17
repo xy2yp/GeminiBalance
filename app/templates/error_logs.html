@@ -133,41 +133,69 @@ endblock %} {% block head_extra_styles %}
     font-weight: 500;
   }
 
-  /* Pagination custom styles */
-  .pagination li a, .pagination li span { /* Assuming 'span' might be used for non-clickable items like '...' */
-    display: flex; /* For centering content if icons are used */
+  /* New Pagination Styles (inspired by keys_status.html) */
+  ul.pagination a {
+    /* Targets the <a> tags directly within ul.pagination */
+    display: inline-flex; /* Consistent with flex from addPaginationLink */
     align-items: center;
     justify-content: center;
-    padding: 0.5rem 0.75rem; /* Adjust padding as needed */
-    line-height: 1.25;
-    color: #e2e8f0; /* Light gray/white text */
-    background-color: rgba(107, 70, 193, 0.4); /* Consistent with other buttons */
-    border: 1px solid rgba(120, 100, 200, 0.6); /* Consistent with other buttons */
-    border-radius: 0.375rem; /* Tailwind's rounded-md */
-    transition: all 0.2s ease-in-out;
-    min-width: 36px; /* Ensure minimum width for small numbers */
-    text-align: center;
-  }
-
-  .pagination li a:hover, .pagination li span:hover:not(.disabled) { /* Avoid hover on disabled spans */
+    /* Tailwind classes from JS will handle padding, border-radius, font-size, transition */
+    /* Defaults for non-active, non-disabled, non-hover buttons */
+    background-color: rgba(80, 60, 160, 0.8);
     color: #ffffff;
-    background-color: rgba(120, 100, 200, 0.6); /* Consistent with other button hovers */
-    border-color: rgba(167, 139, 250, 0.8);
+    border: 1px solid rgba(120, 100, 200, 0.4);
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+    min-width: 36px; /* Retain from original error_logs for consistency */
+    text-align: center; /* Retain from original error_logs for consistency */
+    /* Ensure base transition if not fully handled by JS's Tailwind classes */
+    transition: background-color 0.15s ease-in-out,
+      border-color 0.15s ease-in-out, color 0.15s ease-in-out;
   }
 
-  .pagination li.active a, .pagination li.active span { /* Assuming 'active' class for current page */
-    color: #ffffff !important;
-    background-color: #7c3aed !important; /* Violet-600, ensure it overrides */
-    border-color: #7c3aed !important;
+  ul.pagination a:hover:not(.active):not(.disabled) {
+    /* Hover for non-active, non-disabled */
+    background-color: rgba(
+      100,
+      80,
+      180,
+      0.9
+    ); /* Slightly lighter/more interactive purple */
+    border-color: rgba(140, 120, 220, 0.7);
+    color: #ffffff;
+  }
+
+  ul.pagination a.active {
+    /* Active state */
+    background-color: rgba(120, 100, 200, 0.9);
+    border-color: rgba(150, 130, 230, 0.7);
+    color: #ffffff; /* Ensure text is white */
     font-weight: 600; /* Make active page number bolder */
+    cursor: default;
   }
 
-  .pagination li.disabled a, .pagination li.disabled span { /* Assuming 'disabled' class */
-    color: rgba(226, 232, 240, 0.6) !important;
-    background-color: rgba(80, 60, 160, 0.3) !important; /* Slightly more visible than pure disabled */
-    border-color: rgba(120, 100, 200, 0.4) !important;
+  ul.pagination a.disabled {
+    /* Disabled state for '...' or prev/next unavailable */
+    background-color: rgba(
+      80,
+      60,
+      160,
+      0.3
+    ) !important; /* Use existing disabled bg */
+    color: rgba(
+      226,
+      232,
+      240,
+      0.6
+    ) !important; /* Use existing disabled text color */
+    border-color: rgba(
+      120,
+      100,
+      200,
+      0.4
+    ) !important; /* Use existing disabled border color */
     cursor: not-allowed;
     pointer-events: none;
+    text-shadow: none;
   }
 </style>
 {% endblock %} {% block content %}
@@ -303,6 +331,13 @@ endblock %} {% block head_extra_styles %}
           >
             <i class="fas fa-trash-alt mr-1.5"></i>删除
           </button>
+          <button
+            id="deleteAllLogsBtn"
+            class="flex items-center justify-center px-4 py-1.5 bg-red-700 hover:bg-red-800 text-white rounded-lg font-medium transition-all duration-200 shadow-sm hover:shadow-md whitespace-nowrap"
+            title="清空所有错误日志"
+          >
+            <i class="fas fa-dumpster-fire mr-1.5"></i>清空全部
+          </button>
         </div>
       </div>
 
@@ -323,15 +358,20 @@ endblock %} {% block head_extra_styles %}
                   class="form-checkbox h-4 w-4 text-violet-500 border-gray-500 rounded focus:ring-violet-500 bg-transparent"
                 />
               </th>
-              <th class="px-5 py-3 font-semibold cursor-pointer" id="sortById">
+              <th
+                class="px-5 py-3 font-semibold text-white cursor-pointer"
+                id="sortById"
+              >
                 ID <i class="fas fa-sort ml-1"></i>
               </th>
-              <th class="px-5 py-3 font-semibold">Gemini密钥</th>
-              <th class="px-5 py-3 font-semibold">错误类型</th>
-              <th class="px-5 py-3 font-semibold">错误码</th>
-              <th class="px-5 py-3 font-semibold">模型名称</th>
-              <th class="px-5 py-3 font-semibold">请求时间</th>
-              <th class="px-5 py-3 font-semibold rounded-tr-lg text-center">
+              <th class="px-5 py-3 font-semibold text-white">Gemini密钥</th>
+              <th class="px-5 py-3 font-semibold text-white">错误类型</th>
+              <th class="px-5 py-3 font-semibold text-white">错误码</th>
+              <th class="px-5 py-3 font-semibold text-white">模型名称</th>
+              <th class="px-5 py-3 font-semibold text-white">请求时间</th>
+              <th
+                class="px-5 py-3 font-semibold text-white rounded-tr-lg text-center"
+              >
                 操作
               </th>
             </tr>

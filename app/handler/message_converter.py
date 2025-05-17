@@ -128,12 +128,7 @@ class OpenAIMessageConverter(MessageConverter):
             raise ValueError(f"Unsupported media format: {format}")
 
         try:
-            # Decode Base64 to check size
-            # Be careful with memory usage for very large files
-            # Consider streaming decoding or checking length heuristic first if memory is a concern
-            decoded_data = base64.b64decode(
-                data, validate=True
-            )  # Use validate=True for stricter check
+            decoded_data = base64.b64decode(data, validate=True)
             if len(decoded_data) > max_size:
                 logger.error(
                     f"Media data size ({len(decoded_data)} bytes) exceeds limit ({max_size} bytes)."
@@ -141,7 +136,6 @@ class OpenAIMessageConverter(MessageConverter):
                 raise ValueError(
                     f"Media data size exceeds limit of {max_size // 1024 // 1024}MB"
                 )
-            # No need to return decoded_data, just the original base64 if valid
             return data
         except base64.binascii.Error as e:
             logger.error(f"Invalid Base64 data provided: {e}")
@@ -163,7 +157,6 @@ class OpenAIMessageConverter(MessageConverter):
             if "content" in msg and isinstance(msg["content"], list):
                 for content_item in msg["content"]:
                     if not isinstance(content_item, dict):
-                        # Skip non-dict items if any unexpected format appears
                         logger.warning(
                             f"Skipping unexpected content item format: {type(content_item)}"
                         )
@@ -184,13 +177,11 @@ class OpenAIMessageConverter(MessageConverter):
                             logger.error(
                                 f"Failed to convert image URL {content_item['image_url']['url']}: {e}"
                             )
-                            # Decide how to handle: skip part, add error text, etc.
                             parts.append(
                                 {
                                     "text": f"[Error processing image: {content_item['image_url']['url']}]"
                                 }
                             )
-                    # --- Add handling for input_audio ---
                     elif content_type == "input_audio" and content_item.get(
                         "input_audio"
                     ):
@@ -205,7 +196,6 @@ class OpenAIMessageConverter(MessageConverter):
                             continue
 
                         try:
-                            # Validate size and format
                             validated_data = self._validate_media_data(
                                 audio_format,
                                 audio_data,

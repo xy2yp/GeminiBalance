@@ -32,6 +32,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             and not request.url.path.startswith("/hf")
             and not request.url.path.startswith("/openai")
             and not request.url.path.startswith("/api/version/check")
+            and not request.url.path.startswith("/vertex-express")
         ):
 
             auth_token = request.cookies.get("auth_token")
@@ -60,7 +61,7 @@ def setup_middlewares(app: FastAPI) -> None:
     # 配置CORS中间件
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # 生产环境建议配置具体的域名
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=[
             "GET",
@@ -68,8 +69,8 @@ def setup_middlewares(app: FastAPI) -> None:
             "PUT",
             "DELETE",
             "OPTIONS",
-        ],  # 明确指定允许的HTTP方法
-        allow_headers=["*"],  # 生产环境建议配置具体的请求头
-        expose_headers=["*"],  # 允许前端访问的响应头
-        max_age=600,  # 预检请求缓存时间(秒)
+        ],
+        allow_headers=["*"],
+        expose_headers=["*"],
+        max_age=600,
     )
