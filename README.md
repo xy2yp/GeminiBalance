@@ -10,6 +10,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-green.svg)](https://fastapi.tiangolo.com/)
 [![Uvicorn](https://img.shields.io/badge/Uvicorn-running-purple.svg)](https://www.uvicorn.org/)
 [![Telegram Group](https://img.shields.io/badge/Telegram-Group-blue.svg?logo=telegram)](https://t.me/+soaHax5lyI0wZDVl)
+
 > Telegram Group: https://t.me/+soaHax5lyI0wZDVl
 
 ## Project Introduction
@@ -262,6 +263,10 @@ Thanks to all developers who contributed to this project!
 ## 🎁 Project Support
 
 If you find this project helpful, consider supporting me via [Afdian](https://afdian.com/a/snaily).
+
+## VPS Recommend
+
+[![Powered by DartNode](https://dartnode.com/branding/DN-Open-Source-sm.png)](https://dartnode.com "Powered by DartNode - Free VPS for Open Source")
 
 ## License
 

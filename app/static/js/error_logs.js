@@ -782,29 +782,29 @@ function _createLogRowHtml(log, sequentialId) {
   const fullKey = log.gemini_key || "";
 
   return `
-        <td class="text-center px-3 py-3">
-            <input type="checkbox" class="row-checkbox form-checkbox h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" data-key="${fullKey}" data-log-id="${
+        <td class="text-center px-3 py-3 text-gray-700">
+            <input type="checkbox" class="row-checkbox form-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" data-key="${fullKey}" data-log-id="${
     log.id
   }">
         </td>
-        <td>${sequentialId}</td>
-        <td class="relative group" title="${fullKey}">
+        <td class="text-gray-700">${sequentialId}</td>
+        <td class="relative group text-gray-700" title="${fullKey}">
             ${maskedKey}
             <button class="copy-btn absolute top-1/2 right-2 transform -translate-y-1/2 bg-gray-200 hover:bg-gray-300 text-gray-600 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-xs" data-copy-text="${fullKey}" title="复制完整密钥">
                 <i class="far fa-copy"></i>
             </button>
         </td>
-        <td>${log.error_type || "未知"}</td>
-        <td class="error-code-content" title="${
+        <td class="text-gray-700">${log.error_type || "未知"}</td>
+        <td class="error-code-content text-gray-700" title="${
           log.error_code || ""
         }">${errorCodeContent}</td>
-        <td>${log.model_name || "未知"}</td>
-        <td>${formattedTime}</td>
+        <td class="text-gray-700">${log.model_name || "未知"}</td>
+        <td class="text-gray-700">${formattedTime}</td>
         <td>
-            <button class="btn-view-details mr-2" data-log-id="${log.id}">
+            <button class="btn-view-details mr-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-all duration-200" data-log-id="${log.id}">
                 <i class="fas fa-eye mr-1"></i>详情
             </button>
-            <button class="btn-delete-row text-danger-600 hover:text-danger-800" data-log-id="${
+            <button class="btn-delete-row bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-sm transition-all duration-200" data-log-id="${
               log.id
             }" title="删除此日志">
                 <i class="fas fa-trash-alt"></i>

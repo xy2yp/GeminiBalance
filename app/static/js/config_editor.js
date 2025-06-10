@@ -1302,27 +1302,28 @@ function handleBulkDeleteVertexApiKeys() {
  * @param {string} tabId - The ID of the tab to switch to.
  */
 function switchTab(tabId) {
+  console.log(`Switching to tab: ${tabId}`);
+
+  // 定义选中态和未选中态的样式
+  const activeStyle = "background-color: #3b82f6 !important; color: #ffffff !important; border: 2px solid #2563eb !important; box-shadow: 0 4px 12px -2px rgba(59, 130, 246, 0.4), 0 2px 6px -1px rgba(59, 130, 246, 0.2) !important; transform: translateY(-2px) !important; font-weight: 600 !important;";
+  const inactiveStyle = "background-color: #f8fafc !important; color: #64748b !important; border: 2px solid #e2e8f0 !important; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important; font-weight: 500 !important; transform: none !important;";
+
   // 更新标签按钮状态
   const tabButtons = document.querySelectorAll(".tab-btn");
+  console.log(`Found ${tabButtons.length} tab buttons`);
+
   tabButtons.forEach((button) => {
-    if (button.getAttribute("data-tab") === tabId) {
-      // 激活状态：主色背景，白色文字，添加阴影
-      button.classList.remove(
-        "bg-white",
-        "bg-opacity-50",
-        "text-gray-700",
-        "hover:bg-opacity-70"
-      );
-      button.classList.add("bg-primary-600", "text-white", "shadow-md");
+    const buttonTabId = button.getAttribute("data-tab");
+    if (buttonTabId === tabId) {
+      // 激活状态：直接设置内联样式
+      button.classList.add("active");
+      button.setAttribute("style", activeStyle);
+      console.log(`Applied active style to button: ${buttonTabId}`);
     } else {
-      // 非激活状态：白色背景，灰色文字，无阴影
-      button.classList.remove("bg-primary-600", "text-white", "shadow-md");
-      button.classList.add(
-        "bg-white",
-        "bg-opacity-50",
-        "text-gray-700",
-        "hover:bg-opacity-70"
-      );
+      // 非激活状态：直接设置内联样式
+      button.classList.remove("active");
+      button.setAttribute("style", inactiveStyle);
+      console.log(`Applied inactive style to button: ${buttonTabId}`);
     }
   });
 
@@ -1450,9 +1451,9 @@ function addArrayItemWithValue(key, value) {
 
   const inputWrapper = document.createElement("div");
   inputWrapper.className =
-    "flex items-center flex-grow rounded-md focus-within:border-violet-400 focus-within:ring focus-within:ring-violet-400 focus-within:ring-opacity-50";
-  // Apply themed border directly via style, and ensure it has a border
-  inputWrapper.style.border = "1px solid rgba(120, 100, 200, 0.5)";
+    "flex items-center flex-grow rounded-md focus-within:border-blue-500 focus-within:ring focus-within:ring-blue-500 focus-within:ring-opacity-50";
+  // Apply light theme border directly via style
+  inputWrapper.style.border = "1px solid rgba(0, 0, 0, 0.12)";
   inputWrapper.style.backgroundColor = "transparent"; // Ensure wrapper is transparent
 
   const input = createArrayInput(
@@ -2095,7 +2096,7 @@ function renderModelsInModal() {
     modelItemElement.type = "button";
     modelItemElement.textContent = model.id;
     modelItemElement.className =
-      "block w-full text-left px-4 py-2 rounded-md hover:bg-violet-700 focus:bg-violet-700 focus:outline-none transition-colors text-gray-200";
+      "block w-full text-left px-4 py-2 rounded-md hover:bg-blue-100 focus:bg-blue-100 focus:outline-none transition-colors text-gray-700 hover:text-gray-800";
     // Add any other classes for styling, e.g., from existing modals or array items
 
     modelItemElement.addEventListener("click", () =>

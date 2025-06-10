@@ -39,7 +39,7 @@ class GeminiResponseHandler(ResponseHandler):
 def _handle_openai_stream_response(
     response: Dict[str, Any], model: str, finish_reason: str, usage_metadata: Optional[Dict[str, Any]]
 ) -> Dict[str, Any]:
-    text, tool_calls = _extract_result(
+    text, tool_calls, _ = _extract_result(
         response, model, stream=True, gemini_format=False
     )
     if not text and not tool_calls:
@@ -63,7 +63,7 @@ def _handle_openai_stream_response(
 def _handle_openai_normal_response(
     response: Dict[str, Any], model: str, finish_reason: str, usage_metadata: Optional[Dict[str, Any]]
 ) -> Dict[str, Any]:
-    text, tool_calls = _extract_result(
+    text, tool_calls, _ = _extract_result(
         response, model, stream=False, gemini_format=False
     )
     return {
@@ -156,17 +156,20 @@ def _extract_result(
     model: str,
     stream: bool = False,
     gemini_format: bool = False,
-) -> tuple[str, List[Dict[str, Any]]]:
+) -> tuple[str, List[Dict[str, Any]], Optional[bool]]:
     text, tool_calls = "", []
+    thought = None
     if stream:
         if response.get("candidates"):
             candidate = response["candidates"][0]
             content = candidate.get("content", {})
             parts = content.get("parts", [])
             if not parts:
-                return "", []
+                return "", [], None
             if "text" in parts[0]:
                 text = parts[0].get("text")
+                if "thought" in parts[0]:
+                    thought = parts[0].get("thought")
             elif "executableCode" in parts[0]:
                 text = _format_code_block(parts[0]["executableCode"])
             elif "codeExecution" in parts[0]:
@@ -206,6 +209,8 @@ def _extract_result(
                     for part in candidate["content"]["parts"]:
                         if "text" in part:
                             text += part["text"]
+                            if "thought" in part and thought is None:
+                                thought = part.get("thought")
                         elif "inlineData" in part:
                             text += _extract_image_data(part)
 
@@ -215,7 +220,7 @@ def _extract_result(
             )
         else:
             text = "暂无返回"
-    return text, tool_calls
+    return text, tool_calls, thought
 
 
 def _extract_image_data(part: dict) -> str:
@@ -288,13 +293,16 @@ def _extract_tool_calls(
 def _handle_gemini_stream_response(
     response: Dict[str, Any], model: str, stream: bool
 ) -> Dict[str, Any]:
-    text, tool_calls = _extract_result(
+    text, tool_calls, thought = _extract_result(
         response, model, stream=stream, gemini_format=True
     )
     if tool_calls:
         content = {"parts": tool_calls, "role": "model"}
     else:
-        content = {"parts": [{"text": text}], "role": "model"}
+        part = {"text": text}
+        if thought is not None:
+            part["thought"] = thought
+        content = {"parts": [part], "role": "model"}
     response["candidates"][0]["content"] = content
     return response
 
@@ -302,13 +310,16 @@ def _handle_gemini_stream_response(
 def _handle_gemini_normal_response(
     response: Dict[str, Any], model: str, stream: bool
 ) -> Dict[str, Any]:
-    text, tool_calls = _extract_result(
+    text, tool_calls, thought = _extract_result(
         response, model, stream=stream, gemini_format=True
     )
     if tool_calls:
         content = {"parts": tool_calls, "role": "model"}
     else:
-        content = {"parts": [{"text": text}], "role": "model"}
+        part = {"text": text}
+        if thought is not None:
+            part["thought"] = thought
+        content = {"parts": [part], "role": "model"}
     response["candidates"][0]["content"] = content
     return response
 
