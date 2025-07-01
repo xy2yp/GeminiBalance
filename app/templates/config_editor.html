@@ -1021,6 +1021,33 @@ endblock %} {% block head_extra_styles %}
             socks5://host:port。点击按钮可批量添加或删除。</small
           >
         </div>
+        <!-- 代理使用策略 -->
+        <div class="mb-6">
+          <div class="flex items-center justify-between">
+              <label
+                      for="PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY"
+                      class="font-semibold text-gray-700"
+              >是否开启固定代理策略</label
+              >
+              <div
+                      class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in"
+              >
+                  <input
+                          type="checkbox"
+                          name="PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY"
+                          id="PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY"
+                          class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                  />
+                  <label
+                          for="PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY"
+                          class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
+                  ></label>
+              </div>
+          </div>
+          <small class="text-gray-500 mt-1 block"
+          >开启后，对于每一个API_KEY将根据算法从代理列表中选取同一个代理IP，防止一个API_KEY同时被多个IP访问，也同时防止了一个IP访问了过多的API_KEY。</small
+          >
+        </div>
       </div>
 
       <!-- 模型相关配置 -->
@@ -1272,7 +1299,7 @@ endblock %} {% block head_extra_styles %}
                         </div> -->
           <small class="text-gray-500 mt-1 block"
             >为每个思考模型设置预算（整数，最大值
-            24576），此项与上方模型列表自动关联。</small
+            32767），此项与上方模型列表自动关联。</small
           >
         </div>
         <!-- 安全设置 -->
@@ -2328,7 +2355,7 @@ endblock %} {% block head_extra_styles %}
         let val = this.value.replace(/[^0-9]/g, "");
         if (val !== "") {
           val = parseInt(val, 10);
-          if (val > 24576) val = 24576;
+          if (val > 32767) val = 32767;
         }
         this.value = val;
 
