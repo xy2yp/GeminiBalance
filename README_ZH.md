@@ -1,5 +1,11 @@
 # Gemini Balance - Gemini API 代理和负载均衡器
 
+<p align="center">
+  <a href="https://trendshift.io/repositories/13692" target="_blank">
+    <img src="https://trendshift.io/api/badge/repositories/13692" alt="snailyp%2Fgemini-balance | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/>
+  </a>
+</p>
+
 > ⚠️ 本项目采用 CC BY-NC 4.0（署名-非商业性使用）协议，禁止任何形式的商业倒卖服务，详见 LICENSE 文件。
 
 > 本人从未在各个平台售卖服务，如有遇到售卖此服务者，那一定是倒卖狗，大家切记不要上当受骗。
@@ -178,6 +184,7 @@ app/
 | `SHOW_THINKING_PROCESS`      | 可选，是否显示模型思考过程                                     | `true`                                                |
 | `THINKING_MODELS`            | 可选，支持思考功能的模型列表                                   | `[]`                                                  |
 | `THINKING_BUDGET_MAP`        | 可选，思考功能预算映射 (模型名:预算值)                         | `{}`                                                  |
+| `URL_NORMALIZATION_ENABLED`  | 可选，是否启用智能路由映射功能                                 | `false`                                               |
 | `BASE_URL`                   | 可选，Gemini API 基础 URL，默认无需修改                        | `https://generativelanguage.googleapis.com/v1beta`    |
 | `MAX_FAILURES`               | 可选，允许单个key失败的次数                                    | `3`                                                   |
 | `MAX_RETRIES`                | 可选，API 请求失败时的最大重试次数                             | `3`                                                   |
@@ -191,6 +198,10 @@ app/
 | `AUTO_DELETE_REQUEST_LOGS_ENABLED`| 可选，是否开启自动删除请求日志                               | `false`                                               |
 | `AUTO_DELETE_REQUEST_LOGS_DAYS` | 可选，自动删除多少天前的请求日志 (例如 1, 7, 30)           | `30`                                                  |
 | `SAFETY_SETTINGS`            | 可选，安全设置 (JSON 字符串格式)，用于配置内容安全阈值。示例值可能需要根据实际模型支持情况调整。 | `[{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "OFF"}, {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "OFF"}, {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "OFF"}, {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "OFF"}, {"category": "HARM_CATEGORY_CIVIC_INTEGRITY", "threshold": "BLOCK_NONE"}]` |
+| **TTS 相关**                 |                                                          |                                                       |
+| `TTS_MODEL`                  | 可选，TTS 模型名称                                           | `gemini-2.5-flash-preview-tts`                        |
+| `TTS_VOICE_NAME`             | 可选，TTS 语音名称                                           | `Zephyr`                                              |
+| `TTS_SPEED`                  | 可选，TTS 语速                                               | `normal`                                              |
 | **图像生成相关**             |                                                          |                                                       |
 | `PAID_KEY`                   | 可选，付费版API Key，用于图片生成等高级功能                    | `your-paid-api-key`                                   |
 | `CREATE_IMAGE_MODEL`         | 可选，图片生成模型                                             | `imagen-3.0-generate-002`                             |
@@ -199,6 +210,7 @@ app/
 | `PICGO_API_KEY`              | 可选，[PicoGo](https://www.picgo.net/)图床的API Key                                      | `your-picogo-apikey`                                  |
 | `CLOUDFLARE_IMGBED_URL`      | 可选，[CloudFlare](https://github.com/MarSeventh/CloudFlare-ImgBed) 图床上传地址                                  | `https://xxxxxxx.pages.dev/upload`                    |
 | `CLOUDFLARE_IMGBED_AUTH_CODE`| 可选，CloudFlare图床的鉴权key                                  | `your-cloudflare-imgber-auth-code`                    |
+| `CLOUDFLARE_IMGBED_UPLOAD_FOLDER`| 可选，CloudFlare图床的上传文件夹路径                        | `""`                                                  |
 | **流式优化器相关**           |                                                          |                                                       |
 | `STREAM_OPTIMIZER_ENABLED`   | 可选，是否启用流式输出优化                                     | `false`                                               |
 | `STREAM_MIN_DELAY`           | 可选，流式输出最小延迟                                         | `0.016`                                               |

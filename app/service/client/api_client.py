@@ -40,6 +40,13 @@ class GeminiApiClient(ApiClient):
             model = model[:-20]
         return model
 
+    def _prepare_headers(self) -> Dict[str, str]:
+        headers = {}
+        if settings.CUSTOM_HEADERS:
+            headers.update(settings.CUSTOM_HEADERS)
+            logger.info(f"Using custom headers: {settings.CUSTOM_HEADERS}")
+        return headers
+
     async def get_models(self, api_key: str) -> Optional[Dict[str, Any]]:
         """获取可用的 Gemini 模型列表"""
         timeout = httpx.Timeout(timeout=5)
@@ -52,10 +59,11 @@ class GeminiApiClient(ApiClient):
                 proxy_to_use = random.choice(settings.PROXIES)
             logger.info(f"Using proxy for getting models: {proxy_to_use}")
 
+        headers = self._prepare_headers()
         async with httpx.AsyncClient(timeout=timeout, proxy=proxy_to_use) as client:
             url = f"{self.base_url}/models?key={api_key}&pageSize=1000"
             try:
-                response = await client.get(url)
+                response = await client.get(url, headers=headers)
                 response.raise_for_status()
                 return response.json()
             except httpx.HTTPStatusError as e:
@@ -78,9 +86,10 @@ class GeminiApiClient(ApiClient):
                 proxy_to_use = random.choice(settings.PROXIES)
             logger.info(f"Using proxy for getting models: {proxy_to_use}")
             
+        headers = self._prepare_headers()
         async with httpx.AsyncClient(timeout=timeout, proxy=proxy_to_use) as client:
             url = f"{self.base_url}/models/{model}:generateContent?key={api_key}"
-            response = await client.post(url, json=payload)
+            response = await client.post(url, json=payload, headers=headers)
             if response.status_code != 200:
                 error_content = response.text
                 raise Exception(f"API call failed with status code {response.status_code}, {error_content}")
@@ -98,15 +107,37 @@ class GeminiApiClient(ApiClient):
                 proxy_to_use = random.choice(settings.PROXIES)
             logger.info(f"Using proxy for getting models: {proxy_to_use}")
 
+        headers = self._prepare_headers()
         async with httpx.AsyncClient(timeout=timeout, proxy=proxy_to_use) as client:
             url = f"{self.base_url}/models/{model}:streamGenerateContent?alt=sse&key={api_key}"
-            async with client.stream(method="POST", url=url, json=payload) as response:
+            async with client.stream(method="POST", url=url, json=payload, headers=headers) as response:
                 if response.status_code != 200:
                     error_content = await response.aread()
                     error_msg = error_content.decode("utf-8")
                     raise Exception(f"API call failed with status code {response.status_code}, {error_msg}")
                 async for line in response.aiter_lines():
                     yield line
+
+    async def count_tokens(self, payload: Dict[str, Any], model: str, api_key: str) -> Dict[str, Any]:
+        timeout = httpx.Timeout(self.timeout, read=self.timeout)
+        model = self._get_real_model(model)
+
+        proxy_to_use = None
+        if settings.PROXIES:
+            if settings.PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY:
+                proxy_to_use = settings.PROXIES[hash(api_key) % len(settings.PROXIES)]
+            else:
+                proxy_to_use = random.choice(settings.PROXIES)
+            logger.info(f"Using proxy for counting tokens: {proxy_to_use}")
+
+        headers = self._prepare_headers()
+        async with httpx.AsyncClient(timeout=timeout, proxy=proxy_to_use) as client:
+            url = f"{self.base_url}/models/{model}:countTokens?key={api_key}"
+            response = await client.post(url, json=payload, headers=headers)
+            if response.status_code != 200:
+                error_content = response.text
+                raise Exception(f"API call failed with status code {response.status_code}, {error_content}")
+            return response.json()
 
 
 class OpenaiApiClient(ApiClient):
@@ -116,6 +147,13 @@ class OpenaiApiClient(ApiClient):
         self.base_url = base_url
         self.timeout = timeout
         
+    def _prepare_headers(self, api_key: str) -> Dict[str, str]:
+        headers = {"Authorization": f"Bearer {api_key}"}
+        if settings.CUSTOM_HEADERS:
+            headers.update(settings.CUSTOM_HEADERS)
+            logger.info(f"Using custom headers: {settings.CUSTOM_HEADERS}")
+        return headers
+
     async def get_models(self, api_key: str) -> Dict[str, Any]:
         timeout = httpx.Timeout(self.timeout, read=self.timeout)
 
@@ -127,9 +165,9 @@ class OpenaiApiClient(ApiClient):
                 proxy_to_use = random.choice(settings.PROXIES)
             logger.info(f"Using proxy for getting models: {proxy_to_use}")
 
+        headers = self._prepare_headers(api_key)
         async with httpx.AsyncClient(timeout=timeout, proxy=proxy_to_use) as client:
             url = f"{self.base_url}/openai/models"
-            headers = {"Authorization": f"Bearer {api_key}"}
             response = await client.get(url, headers=headers)
             if response.status_code != 200:
                 error_content = response.text
@@ -147,9 +185,9 @@ class OpenaiApiClient(ApiClient):
                 proxy_to_use = random.choice(settings.PROXIES)
             logger.info(f"Using proxy for getting models: {proxy_to_use}")
 
+        headers = self._prepare_headers(api_key)
         async with httpx.AsyncClient(timeout=timeout, proxy=proxy_to_use) as client:
             url = f"{self.base_url}/openai/chat/completions"
-            headers = {"Authorization": f"Bearer {api_key}"}
             response = await client.post(url, json=payload, headers=headers)
             if response.status_code != 200:
                 error_content = response.text
@@ -166,9 +204,9 @@ class OpenaiApiClient(ApiClient):
                 proxy_to_use = random.choice(settings.PROXIES)
             logger.info(f"Using proxy for getting models: {proxy_to_use}")
 
+        headers = self._prepare_headers(api_key)
         async with httpx.AsyncClient(timeout=timeout, proxy=proxy_to_use) as client:
             url = f"{self.base_url}/openai/chat/completions"
-            headers = {"Authorization": f"Bearer {api_key}"}
             async with client.stream(method="POST", url=url, json=payload, headers=headers) as response:
                 if response.status_code != 200:
                     error_content = await response.aread()
@@ -188,9 +226,9 @@ class OpenaiApiClient(ApiClient):
                 proxy_to_use = random.choice(settings.PROXIES)
             logger.info(f"Using proxy for getting models: {proxy_to_use}")
 
+        headers = self._prepare_headers(api_key)
         async with httpx.AsyncClient(timeout=timeout, proxy=proxy_to_use) as client:
             url = f"{self.base_url}/openai/embeddings"
-            headers = {"Authorization": f"Bearer {api_key}"}
             payload = {
                 "input": input,
                 "model": model,
@@ -212,9 +250,9 @@ class OpenaiApiClient(ApiClient):
                 proxy_to_use = random.choice(settings.PROXIES)
             logger.info(f"Using proxy for getting models: {proxy_to_use}")
 
+        headers = self._prepare_headers(api_key)
         async with httpx.AsyncClient(timeout=timeout, proxy=proxy_to_use) as client:
             url = f"{self.base_url}/openai/images/generations"
-            headers = {"Authorization": f"Bearer {api_key}"}
             response = await client.post(url, json=payload, headers=headers)
             if response.status_code != 200:
                 error_content = response.text
